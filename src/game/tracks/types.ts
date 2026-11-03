@@ -30,3 +30,4 @@ export interface Track {
   currents: Current[];
   laps: number;
 }
+

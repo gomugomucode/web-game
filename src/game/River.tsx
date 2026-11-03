@@ -245,3 +245,4 @@ function FinishGate({ position }: { position: [number, number, number] }) {
     </group>
   );
 }
+
