@@ -65,9 +65,11 @@ export function Otter({ inputRef, tunables }: OtterProps) {
     }
 
     // 4. Steering (Section 6.2)
+    // Left Arrow / A (+1) turns left on screen (increases heading towards +X)
+    // Right Arrow / D (-1) turns right on screen (decreases heading towards -X)
     let turnInput = 0;
-    if (input.right) turnInput += 1;
-    if (input.left) turnInput -= 1;
+    if (input.left) turnInput += 1;
+    if (input.right) turnInput -= 1;
 
     const turnFactor = clamp(
       currentSpeed / GAME_CONSTANTS.TURN_SPEED_REF,
@@ -78,13 +80,13 @@ export function Otter({ inputRef, tunables }: OtterProps) {
     headingRef.current += turnInput * tunables.turnRate * dt * turnFactor;
     const h = headingRef.current;
 
-    // 5. Unit vectors for heading (facing +Z at h=0)
+    // 5. Unit vectors for heading (facing +Z at h=0, screen-right is -X)
     const sinH = Math.sin(h);
     const cosH = Math.cos(h);
     const fwdX = sinH;
     const fwdZ = cosH;
-    const rightX = cosH;
-    const rightZ = -sinH;
+    const rightX = -cosH;
+    const rightZ = sinH;
 
     // 6. Dash Trigger (Space edge detection)
     const spaceIsPressed = input.dash;
