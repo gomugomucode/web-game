@@ -19,3 +19,4 @@ export const sharedOtterRefs: OtterSharedRefs = {
   isDashing: false,
   hasReset: false,
 };
+
