@@ -28,6 +28,15 @@ export const GAME_CONSTANTS = {
   DASH_THRUST_MULT: 1.5, // Multiplier for forward thrust while dash boost is active
   DASH_COOLDOWN: 2.5, // Cooldown timer (seconds) before another dash can be triggered
 
+  // Track & Boundary (Milestone 3, Section 6.2)
+  RIVER_HALF_WIDTH: 9.0, // Base river half-width in meters
+  BOUNDARY_COLLISION_RADIUS: 0.45, // Otter collision offset against river banks
+  BOUNDARY_SPEED_MULTIPLIER: 0.7, // Section 6.2: Multiply speed by 0.7 on bank contact
+  BANK_HEIGHT: 0.85, // Elevation of grassy bank above water level
+  BANK_WIDTH: 4.5, // Width of raised bank slope
+  BANK_TOP_COLOR: '#22c55e', // Vibrant anime green grass
+  BANK_SLOPE_COLOR: '#57534e', // Earthen river bank rock/soil
+
   // Camera (Section 6.4 & Milestone 2)
   CAMERA_BEHIND_DISTANCE: 7.0, // Units behind the otter along heading
   CAMERA_HEIGHT: 3.5, // Units above the water/otter
@@ -50,9 +59,15 @@ export const GAME_CONSTANTS = {
   OTTER_RADIUS: 0.35, // Radius of capsule (meters)
   OTTER_LENGTH: 0.9, // Length of capsule cylinder portion (meters)
 
-  // World & Aesthetics
-  WATER_COLOR: '#3fa7d6',
+  // World & Aesthetics (Vision document: Genshin-like bright anime nature)
+  WATER_COLOR: '#0891b2', // Deep clear blue-green
+  WATER_SURFACE_COLOR: '#22d3ee', // Highlight water cyan
   WATER_SURFACE_Y: 0.0,
+  FOG_COLOR: '#bae6fd',
+  FOG_NEAR: 80,
+  FOG_FAR: 320,
+  SKY_COLOR: '#7dd3fc',
+  GROUND_VALLEY_COLOR: '#16a34a',
   CANVAS_DPR: [1, 2] as [number, number],
 } as const;
 

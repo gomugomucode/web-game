@@ -6,29 +6,11 @@ import { Leva, useControls } from 'leva';
 import { GAME_CONSTANTS, DEFAULT_MOVEMENT_TUNABLES, MovementTunables } from './constants';
 import { useKeyboardInput } from './input';
 import { Otter } from './Otter';
+import { River } from './River';
+import { Environment } from './Environment';
 import { CameraRig } from './CameraRig';
+import { river01 } from './tracks/river01';
 import { Milestone1Hud } from '../ui/Milestone1Hud';
-
-/**
- * Flat water plane with subtle grid for motion and drift readability
- */
-function FlatWater() {
-  return (
-    <group>
-      {/* Base water surface plane at y = 0 */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, GAME_CONSTANTS.WATER_SURFACE_Y, 0]}>
-        <planeGeometry args={[1000, 1000]} />
-        <meshToonMaterial color={GAME_CONSTANTS.WATER_COLOR} />
-      </mesh>
-
-      {/* Subtle water surface caustics grid so drift and speed are visually clear */}
-      <gridHelper
-        args={[1000, 250, '#38bdf8', '#0284c7']}
-        position={[0, GAME_CONSTANTS.WATER_SURFACE_Y + 0.01, 0]}
-      />
-    </group>
-  );
-}
 
 export function Game() {
   // Global keyboard input listener ref
@@ -102,7 +84,7 @@ export function Game() {
   }) as MovementTunables;
 
   return (
-    <div className="relative w-screen h-screen overflow-hidden bg-slate-950">
+    <div className="relative w-screen h-screen overflow-hidden bg-sky-200">
       {/* Leva Live Tuning Panel in Development */}
       <Leva collapsed={false} oneLineLabels={false} />
 
@@ -113,7 +95,11 @@ export function Game() {
       <Canvas
         dpr={GAME_CONSTANTS.CANVAS_DPR}
         camera={{
-          position: [0, GAME_CONSTANTS.CAMERA_HEIGHT, -GAME_CONSTANTS.CAMERA_BEHIND_DISTANCE],
+          position: [
+            river01.start.pos[0],
+            GAME_CONSTANTS.CAMERA_HEIGHT,
+            river01.start.pos[1] - GAME_CONSTANTS.CAMERA_BEHIND_DISTANCE,
+          ],
           fov: GAME_CONSTANTS.CAMERA_BASE_FOV,
           near: 0.1,
           far: 1000,
@@ -121,28 +107,16 @@ export function Game() {
         gl={{ antialias: true, alpha: false }}
         className="w-full h-full block"
       >
-        {/* Stylized lighting: hemisphere + directional sunlight (Section 8) */}
-        <hemisphereLight
-          color="#bae6fd"
-          groundColor="#0369a1"
-          intensity={0.9}
-        />
-        <directionalLight
-          position={[30, 45, -25]}
-          intensity={1.2}
-          color="#fffbeb"
-        />
+        {/* Genshin-style Valley Environment: sky, soft fog, warm sunlight, rocks, floating petals */}
+        <Environment />
 
-        {/* Flat water plane */}
-        <FlatWater />
+        {/* River Track: procedural water ribbon, raised grass banks, start and finish gates */}
+        <River track={river01} />
 
-        {/* Otter mesh and movement loop */}
-        <Otter
-          inputRef={inputRef}
-          tunables={tunables}
-        />
+        {/* Otter mesh, movement loop, and river bank boundary collision */}
+        <Otter inputRef={inputRef} tunables={tunables} />
 
-        {/* Milestone 2 Follow Camera with Smoothing and Dash FOV Effect */}
+        {/* Follow Camera with 1 - exp(-6 * dt) smoothing and dash FOV effect */}
         <CameraRig />
       </Canvas>
     </div>

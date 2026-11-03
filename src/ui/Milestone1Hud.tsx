@@ -79,7 +79,7 @@ export function Milestone1Hud({ tunables }: Milestone1HudProps) {
               <h1 className="text-lg font-black tracking-wide bg-gradient-to-r from-sky-400 via-teal-300 to-emerald-400 bg-clip-text text-transparent">
                 OTTER RUN
               </h1>
-              <p className="text-xs text-slate-400 font-medium">Milestone 1 · Scene & Movement</p>
+              <p className="text-xs text-emerald-400 font-medium">River Valley · Calm Bend</p>
             </div>
           </div>
         </div>

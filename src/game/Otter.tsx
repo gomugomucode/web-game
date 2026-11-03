@@ -7,20 +7,27 @@ import { GAME_CONSTANTS, MovementTunables } from './constants';
 import { InputState } from './input';
 import { otterTelemetry } from './telemetry';
 import { sharedOtterRefs } from './sharedRefs';
+import { findNearestPointOnPolyline } from './math';
+import { river01 } from './tracks/river01';
 
 interface OtterProps {
   inputRef: React.RefObject<InputState>;
   tunables: MovementTunables;
 }
 
-// Pre-allocated math helper outside useFrame to avoid any per-frame allocations
 const clamp = (val: number, min: number, max: number) => Math.min(Math.max(val, min), max);
 
 export function Otter({ inputRef, tunables }: OtterProps) {
-  // Local physics and transform refs (never stored in React state per Section 4)
-  const posRef = useRef(new THREE.Vector3(0, GAME_CONSTANTS.WATER_SURFACE_Y, 0));
+  // Start otter at track start position facing track start heading (Section 7 & Milestone 3)
+  const posRef = useRef(
+    new THREE.Vector3(
+      river01.start.pos[0],
+      GAME_CONSTANTS.WATER_SURFACE_Y,
+      river01.start.pos[1]
+    )
+  );
   const velRef = useRef(new THREE.Vector3(0, 0, 0));
-  const headingRef = useRef(0); // Yaw in radians, 0 = facing +Z
+  const headingRef = useRef(river01.start.heading);
 
   // Dash state timers
   const dashCooldownTimerRef = useRef(0);
@@ -34,9 +41,11 @@ export function Otter({ inputRef, tunables }: OtterProps) {
   // Object3D container references
   const rootGroupRef = useRef<THREE.Group>(null);
   const visualGroupRef = useRef<THREE.Group>(null);
+  const wakeMeshRef = useRef<THREE.Mesh>(null);
+  const dashStreaksRef = useRef<THREE.Group>(null);
 
   useFrame((_, delta) => {
-    // 1. Clamp delta time according to Section 4 to prevent physics anomalies
+    // 1. Clamp dt according to Section 4
     const dt = Math.min(delta, GAME_CONSTANTS.MAX_DELTA_TIME);
     if (dt <= 0) return;
 
@@ -44,7 +53,7 @@ export function Otter({ inputRef, tunables }: OtterProps) {
     const v = velRef.current;
     const pos = posRef.current;
 
-    // 2. Calculate current horizontal speed on X-Z plane
+    // 2. Horizontal speed on X-Z plane
     const currentSpeed = Math.sqrt(v.x * v.x + v.z * v.z);
 
     // 3. Update Dash Timers
@@ -56,9 +65,6 @@ export function Otter({ inputRef, tunables }: OtterProps) {
     }
 
     // 4. Steering (Section 6.2)
-    // turnFactor = clamp(speed / 3, 0.35, 1)
-    // TURN_RATE = 2.4 rad/s. Steering works slowly at a standstill.
-    // Turn input: A / Left = -1 (steer left towards -X), D / Right = +1 (steer right towards +X)
     let turnInput = 0;
     if (input.right) turnInput += 1;
     if (input.left) turnInput -= 1;
@@ -73,8 +79,6 @@ export function Otter({ inputRef, tunables }: OtterProps) {
     const h = headingRef.current;
 
     // 5. Unit vectors for heading (facing +Z at h=0)
-    // Forward vector = (sin h, 0, cos h)
-    // Right vector   = (cos h, 0, -sin h)
     const sinH = Math.sin(h);
     const cosH = Math.cos(h);
     const fwdX = sinH;
@@ -113,14 +117,9 @@ export function Otter({ inputRef, tunables }: OtterProps) {
     v.z *= dragMultiplier;
 
     // 9. Lateral Grip / Water Drift (Section 6.2)
-    // Decompose velocity into forward and sideways scalar components
     const vForward = v.x * fwdX + v.z * fwdZ;
     let vSide = v.x * rightX + v.z * rightZ;
-
-    // Damping sideways slide over time
     vSide *= Math.exp(-tunables.lateralDamp * dt);
-
-    // Recombine forward and damped sideways components
     v.x = vForward * fwdX + vSide * rightX;
     v.z = vForward * fwdZ + vSide * rightZ;
 
@@ -128,18 +127,45 @@ export function Otter({ inputRef, tunables }: OtterProps) {
     pos.x += v.x * dt;
     pos.z += v.z * dt;
 
-    // Optional restart key (R) resets otter to origin for testing
+    // 11. River Boundary Collision (Milestone 3, Section 6.2)
+    // Find nearest point on the track centerline
+    const nearest = findNearestPointOnPolyline(pos.x, pos.z, river01.centerline);
+    const maxAllowedDist = river01.halfWidth - GAME_CONSTANTS.BOUNDARY_COLLISION_RADIUS;
+
+    if (nearest.distance > maxAllowedDist) {
+      // Move the otter back to the bank boundary edge
+      pos.x = nearest.point[0] + nearest.outwardX * maxAllowedDist;
+      pos.z = nearest.point[1] + nearest.outwardZ * maxAllowedDist;
+
+      // Outward component of velocity into the bank
+      const outwardVel = v.x * nearest.outwardX + v.z * nearest.outwardZ;
+      if (outwardVel > 0) {
+        // Remove outward velocity so otter slides along the bank
+        v.x -= outwardVel * nearest.outwardX;
+        v.z -= outwardVel * nearest.outwardZ;
+
+        // Multiply speed by 0.7 per Section 6.2
+        v.x *= GAME_CONSTANTS.BOUNDARY_SPEED_MULTIPLIER;
+        v.z *= GAME_CONSTANTS.BOUNDARY_SPEED_MULTIPLIER;
+      }
+    }
+
+    // Optional restart key (R) resets otter to track start
     if (input.restart) {
-      pos.set(0, GAME_CONSTANTS.WATER_SURFACE_Y, 0);
+      pos.set(
+        river01.start.pos[0],
+        GAME_CONSTANTS.WATER_SURFACE_Y,
+        river01.start.pos[1]
+      );
       v.set(0, 0, 0);
-      headingRef.current = 0;
+      headingRef.current = river01.start.heading;
       dashCooldownTimerRef.current = 0;
       dashBoostTimerRef.current = 0;
       sharedOtterRefs.hasReset = true;
     }
 
-    // 11. Visual Feedback (Cosmetic only, Section 6.2)
-    // Bank roll: roll the mesh into turns (about 0.35 rad at full steer, smoothed)
+    // 12. Visual Feedback (Cosmetic only, Section 6.2)
+    // Bank roll: roll the mesh into turns
     const targetRoll = -turnInput * GAME_CONSTANTS.ROLL_MAX;
     const rollBlend = 1 - Math.exp(-GAME_CONSTANTS.ROLL_DAMP * dt);
     currentRollRef.current += (targetRoll - currentRollRef.current) * rollBlend;
@@ -155,13 +181,12 @@ export function Otter({ inputRef, tunables }: OtterProps) {
     let scaleZ = 1.0;
     if (isDashBoostActive) {
       const dashProgress = dashBoostTimerRef.current / tunables.dashDuration;
-      // Stretch along forward (Z), slightly compress width and height (X, Y)
       scaleZ = 1.0 + GAME_CONSTANTS.SQUASH_STRETCH_AMOUNT * dashProgress;
       scaleX = 1.0 - (GAME_CONSTANTS.SQUASH_STRETCH_AMOUNT * 0.5) * dashProgress;
       scaleY = scaleX;
     }
 
-    // 12. Apply transforms to Three.js Object3D hierarchy
+    // 13. Apply transforms to Three.js Object3D hierarchy
     if (rootGroupRef.current) {
       rootGroupRef.current.position.set(pos.x, GAME_CONSTANTS.WATER_SURFACE_Y, pos.z);
       rootGroupRef.current.rotation.y = headingRef.current;
@@ -173,12 +198,23 @@ export function Otter({ inputRef, tunables }: OtterProps) {
       visualGroupRef.current.scale.set(scaleX, scaleY, scaleZ);
     }
 
-    // 13. Update Shared Refs for CameraRig (Milestone 2)
+    // 14. Water Wake & Dash Streaks (Vision Document Effects)
+    if (wakeMeshRef.current) {
+      const wakeScale = clamp(currentSpeed / 4.0, 0.4, 2.0);
+      wakeMeshRef.current.scale.set(wakeScale, wakeScale * 1.5, 1);
+      (wakeMeshRef.current.material as THREE.Material).opacity = clamp(currentSpeed / 6.0, 0.1, 0.7);
+    }
+
+    if (dashStreaksRef.current) {
+      dashStreaksRef.current.visible = isDashBoostActive;
+    }
+
+    // 15. Update Shared Refs for CameraRig (Milestone 2)
     sharedOtterRefs.position.copy(pos);
     sharedOtterRefs.heading = h;
     sharedOtterRefs.isDashing = isDashBoostActive;
 
-    // 14. Update Telemetry Store for live HUD without React re-renders
+    // 16. Update Telemetry Store for live HUD without React re-renders
     otterTelemetry.speed = currentSpeed;
     const deg = ((h * (180 / Math.PI)) % 360 + 360) % 360;
     otterTelemetry.headingDeg = deg;
@@ -278,6 +314,32 @@ export function Otter({ inputRef, tunables }: OtterProps) {
         <mesh position={[0, 0.12, -0.9]} rotation={[-0.2, 0, 0]}>
           <coneGeometry args={[0.2, 0.65, 16]} />
           <meshToonMaterial color="#734524" />
+        </mesh>
+      </group>
+
+      {/* Water Wake Foam Oval trailing behind the otter */}
+      <mesh
+        ref={wakeMeshRef}
+        rotation={[-Math.PI / 2, 0, 0]}
+        position={[0, 0.02, -0.8]}
+      >
+        <ringGeometry args={[0.3, 0.65, 24]} />
+        <meshBasicMaterial color="#e0f2fe" transparent opacity={0.4} />
+      </mesh>
+
+      {/* Anime Dash Speed Lines */}
+      <group ref={dashStreaksRef} visible={false}>
+        <mesh position={[0.6, 0.3, -1.8]} rotation={[0, 0, 0]}>
+          <boxGeometry args={[0.04, 0.04, 2.5]} />
+          <meshBasicMaterial color="#ffffff" transparent opacity={0.8} />
+        </mesh>
+        <mesh position={[-0.6, 0.3, -1.8]} rotation={[0, 0, 0]}>
+          <boxGeometry args={[0.04, 0.04, 2.5]} />
+          <meshBasicMaterial color="#ffffff" transparent opacity={0.8} />
+        </mesh>
+        <mesh position={[0, 0.6, -2.0]} rotation={[0, 0, 0]}>
+          <boxGeometry args={[0.04, 0.04, 2.8]} />
+          <meshBasicMaterial color="#ffffff" transparent opacity={0.8} />
         </mesh>
       </group>
     </group>
