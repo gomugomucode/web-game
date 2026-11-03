@@ -28,6 +28,17 @@ export const GAME_CONSTANTS = {
   DASH_THRUST_MULT: 1.5, // Multiplier for forward thrust while dash boost is active
   DASH_COOLDOWN: 2.5, // Cooldown timer (seconds) before another dash can be triggered
 
+  // Camera (Section 6.4 & Milestone 2)
+  CAMERA_BEHIND_DISTANCE: 7.0, // Units behind the otter along heading
+  CAMERA_HEIGHT: 3.5, // Units above the water/otter
+  CAMERA_LOOK_AHEAD_DISTANCE: 3.0, // Units ahead of the otter along heading to look at
+  CAMERA_LOOK_AHEAD_Y: 0.5, // Height offset for camera look-at target
+  CAMERA_SMOOTH_RATE: 6.0, // Rate for 1 - exp(-6 * dt) exponential smoothing
+  CAMERA_MIN_Y: 0.5, // Absolute minimum camera Y to prevent going below water surface (y = 0)
+  CAMERA_BASE_FOV: 60.0, // Field of view at rest
+  CAMERA_DASH_FOV_BOOST: 10.0, // Up to +10 FOV during dash (reaching 70 FOV)
+  CAMERA_FOV_SMOOTH_RATE: 5.0, // Easing rate for FOV transitions
+
   // Visual Feedback (Cosmetic only)
   ROLL_MAX: 0.35, // Maximum bank angle (radians) during hard steering
   ROLL_DAMP: 6.0, // Exponential smoothing rate for banking roll
@@ -68,4 +79,3 @@ export const DEFAULT_MOVEMENT_TUNABLES: MovementTunables = {
   dashDuration: GAME_CONSTANTS.DASH_DURATION,
   dashThrustMult: GAME_CONSTANTS.DASH_THRUST_MULT,
 };
-

@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import { GAME_CONSTANTS, MovementTunables } from './constants';
 import { InputState } from './input';
 import { otterTelemetry } from './telemetry';
+import { sharedOtterRefs } from './sharedRefs';
 
 interface OtterProps {
   inputRef: React.RefObject<InputState>;
@@ -34,12 +35,7 @@ export function Otter({ inputRef, tunables }: OtterProps) {
   const rootGroupRef = useRef<THREE.Group>(null);
   const visualGroupRef = useRef<THREE.Group>(null);
 
-  // Camera tracking refs (Milestone 1 follow camera)
-  const currentCamPos = useRef(new THREE.Vector3(0, 12, -16));
-  const currentLookAt = useRef(new THREE.Vector3(0, 0, 0));
-  const tempDesiredCamPos = useRef(new THREE.Vector3(0, 0, 0));
-
-  useFrame((state, delta) => {
+  useFrame((_, delta) => {
     // 1. Clamp delta time according to Section 4 to prevent physics anomalies
     const dt = Math.min(delta, GAME_CONSTANTS.MAX_DELTA_TIME);
     if (dt <= 0) return;
@@ -139,6 +135,7 @@ export function Otter({ inputRef, tunables }: OtterProps) {
       headingRef.current = 0;
       dashCooldownTimerRef.current = 0;
       dashBoostTimerRef.current = 0;
+      sharedOtterRefs.hasReset = true;
     }
 
     // 11. Visual Feedback (Cosmetic only, Section 6.2)
@@ -176,13 +173,10 @@ export function Otter({ inputRef, tunables }: OtterProps) {
       visualGroupRef.current.scale.set(scaleX, scaleY, scaleZ);
     }
 
-    // 13. Camera Follow (Milestone 1 tracking behind the otter along Z)
-    tempDesiredCamPos.current.set(pos.x, pos.y + 11, pos.z - 15);
-    const camBlend = 1 - Math.exp(-6 * dt);
-    currentCamPos.current.lerp(tempDesiredCamPos.current, camBlend);
-    currentLookAt.current.lerp(pos, camBlend);
-    state.camera.position.copy(currentCamPos.current);
-    state.camera.lookAt(currentLookAt.current);
+    // 13. Update Shared Refs for CameraRig (Milestone 2)
+    sharedOtterRefs.position.copy(pos);
+    sharedOtterRefs.heading = h;
+    sharedOtterRefs.isDashing = isDashBoostActive;
 
     // 14. Update Telemetry Store for live HUD without React re-renders
     otterTelemetry.speed = currentSpeed;

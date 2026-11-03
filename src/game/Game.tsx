@@ -6,6 +6,7 @@ import { Leva, useControls } from 'leva';
 import { GAME_CONSTANTS, DEFAULT_MOVEMENT_TUNABLES, MovementTunables } from './constants';
 import { useKeyboardInput } from './input';
 import { Otter } from './Otter';
+import { CameraRig } from './CameraRig';
 import { Milestone1Hud } from '../ui/Milestone1Hud';
 
 /**
@@ -33,7 +34,7 @@ export function Game() {
   // Global keyboard input listener ref
   const inputRef = useKeyboardInput();
 
-  // Leva controls for live tuning of movement values (Milestone 1 requirement)
+  // Leva controls for live tuning of movement values
   const tunables = useControls('Movement Tunables', {
     accel: {
       value: DEFAULT_MOVEMENT_TUNABLES.accel,
@@ -111,7 +112,12 @@ export function Game() {
       {/* 3D Scene Canvas */}
       <Canvas
         dpr={GAME_CONSTANTS.CANVAS_DPR}
-        camera={{ position: [0, 12, -16], fov: 60, near: 0.1, far: 1000 }}
+        camera={{
+          position: [0, GAME_CONSTANTS.CAMERA_HEIGHT, -GAME_CONSTANTS.CAMERA_BEHIND_DISTANCE],
+          fov: GAME_CONSTANTS.CAMERA_BASE_FOV,
+          near: 0.1,
+          far: 1000,
+        }}
         gl={{ antialias: true, alpha: false }}
         className="w-full h-full block"
       >
@@ -135,6 +141,9 @@ export function Game() {
           inputRef={inputRef}
           tunables={tunables}
         />
+
+        {/* Milestone 2 Follow Camera with Smoothing and Dash FOV Effect */}
+        <CameraRig />
       </Canvas>
     </div>
   );
