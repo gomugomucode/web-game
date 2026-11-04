@@ -9,6 +9,7 @@ export interface InputState {
   right: boolean;     // D or ArrowRight
   dash: boolean;      // Space
   restart: boolean;   // R
+  start: boolean;     // Enter or Space (ready screen)
 }
 
 const DEFAULT_INPUT_STATE: InputState = {
@@ -18,10 +19,13 @@ const DEFAULT_INPUT_STATE: InputState = {
   right: false,
   dash: false,
   restart: false,
+  start: false,
 };
 
 const PREVENT_DEFAULT_KEYS = new Set([
   'Space',
+  'Enter',
+  'NumpadEnter',
   'ArrowUp',
   'ArrowDown',
   'ArrowLeft',
@@ -31,7 +35,7 @@ const PREVENT_DEFAULT_KEYS = new Set([
 /**
  * Custom hook maintaining keyboard input state in a mutable ref.
  * Follows section 6.1:
- * - Prevents default for Space and Arrow keys to avoid page scrolling
+ * - Prevents default for Space, Enter, and Arrow keys to avoid page scrolling
  * - Clears all key states on window blur
  */
 export function useKeyboardInput() {
@@ -41,6 +45,16 @@ export function useKeyboardInput() {
     function handleKeyDown(event: KeyboardEvent) {
       if (PREVENT_DEFAULT_KEYS.has(event.code)) {
         event.preventDefault();
+      }
+
+      // Check R restart (case-insensitive and code check)
+      if (event.code === 'KeyR' || event.key.toLowerCase() === 'r') {
+        inputRef.current.restart = true;
+      }
+
+      // Check Start (Enter or Space)
+      if (event.code === 'Enter' || event.code === 'NumpadEnter') {
+        inputRef.current.start = true;
       }
 
       switch (event.code) {
@@ -62,14 +76,20 @@ export function useKeyboardInput() {
           break;
         case 'Space':
           inputRef.current.dash = true;
-          break;
-        case 'KeyR':
-          inputRef.current.restart = true;
+          inputRef.current.start = true;
           break;
       }
     }
 
     function handleKeyUp(event: KeyboardEvent) {
+      if (event.code === 'KeyR' || event.key.toLowerCase() === 'r') {
+        inputRef.current.restart = false;
+      }
+
+      if (event.code === 'Enter' || event.code === 'NumpadEnter') {
+        inputRef.current.start = false;
+      }
+
       switch (event.code) {
         case 'KeyW':
         case 'ArrowUp':
@@ -89,9 +109,7 @@ export function useKeyboardInput() {
           break;
         case 'Space':
           inputRef.current.dash = false;
-          break;
-        case 'KeyR':
-          inputRef.current.restart = false;
+          inputRef.current.start = false;
           break;
       }
     }
@@ -104,6 +122,7 @@ export function useKeyboardInput() {
       inputRef.current.right = false;
       inputRef.current.dash = false;
       inputRef.current.restart = false;
+      inputRef.current.start = false;
     }
 
     window.addEventListener('keydown', handleKeyDown);
@@ -119,4 +138,3 @@ export function useKeyboardInput() {
 
   return inputRef;
 }
-
