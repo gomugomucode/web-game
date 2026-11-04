@@ -14,10 +14,11 @@
 * [x] **Milestone 1**: Arcade Otter movement, water drift, dash impulse, live Leva tuning panel, high-performance HUD.
 * [x] **Milestone 2**: Third-person follow camera with $1 - e^{-6 \cdot dt}$ smoothing, dynamic dash FOV widening (+10°), anti-water clipping.
 * [x] **Milestone 3**: Data-driven track (`river01`), procedural river ribbon, 3D raised grassy banks, and boundary collision slide system.
+* [x] **Milestone 4**: Complete Race Flow (Countdown overlay, 4 ordered Checkpoints with active highlights, `mm:ss.mmm` decoupled Timer, Finish Results Panel, `localStorage` Best Time persistence, input locking, and <kbd>R</kbd> restart).
 * [x] **Vision Aesthetics**: Genshin-inspired river valley with warm directional sunlight, atmospheric sky fog, valley ground floor, low-poly rocks, floating leaves, start/finish gates, water wake, and anime speed streaks.
 
 ### Next Milestone
-* [ ] **Milestone 4**: Race Flow (3-2-1-GO Countdown, 4 ordered Checkpoints, `mm:ss.mmm` Timer, Finish Results Panel, `localStorage` Best Time persistence, and <kbd>R</kbd> restart).
+* [ ] **Milestone 5**: Currents (Signature mechanic: acceleration along polyline, visible flow streaks, tinted water zones).
 
 ---
 
