@@ -10,7 +10,7 @@ import { River } from './River';
 import { Environment } from './Environment';
 import { CameraRig } from './CameraRig';
 import { river01 } from './tracks/river01';
-import { Milestone1Hud } from '../ui/Milestone1Hud';
+import { Hud } from '../ui/Hud';
 
 export function Game() {
   // Global keyboard input listener ref
@@ -88,8 +88,8 @@ export function Game() {
       {/* Leva Live Tuning Panel in Development */}
       <Leva collapsed={false} oneLineLabels={false} />
 
-      {/* High-performance HUD */}
-      <Milestone1Hud tunables={tunables} />
+      {/* High-performance Race HUD (Milestone 4) */}
+      <Hud tunables={tunables} />
 
       {/* 3D Scene Canvas */}
       <Canvas

@@ -3,14 +3,19 @@
 import React, { useMemo } from 'react';
 import * as THREE from 'three';
 import { Track } from './tracks/types';
-import { smoothCenterline } from './math';
+import { smoothCenterline, findNearestPointOnPolyline } from './math';
 import { GAME_CONSTANTS } from './constants';
+import { useGameStore } from './useGameStore';
 
 interface RiverProps {
   track: Track;
 }
 
 export function River({ track }: RiverProps) {
+  // Subscribe to race state for checkpoint highlights
+  const nextCheckpoint = useGameStore((state) => state.nextCheckpoint);
+  const phase = useGameStore((state) => state.phase);
+
   // Pre-calculate smoothed spline centerline points and meshes
   const { waterGeo, leftBankGeo, rightBankGeo } = useMemo(() => {
     const smoothed = smoothCenterline(track.centerline, 14);
@@ -47,7 +52,6 @@ export function River({ track }: RiverProps) {
       dz /= len;
 
       // Normal perpendicular to tangent on X-Z plane
-      // N = (-dz, dx) points to the left of the river's forward flow
       const nx = -dz;
       const nz = dx;
 
@@ -70,9 +74,9 @@ export function River({ track }: RiverProps) {
       const leftOuterX = curr[0] + nx * (halfWidth + bankWidth);
       const leftOuterZ = curr[1] + nz * (halfWidth + bankWidth);
 
-      leftPositions.push(leftEdgeX, GAME_CONSTANTS.WATER_SURFACE_Y, leftEdgeZ); // Waterline
-      leftPositions.push(leftCrestX, bankHeight, leftCrestZ); // Crest
-      leftPositions.push(leftOuterX, bankHeight * 0.95, leftOuterZ); // Outer flat grass
+      leftPositions.push(leftEdgeX, GAME_CONSTANTS.WATER_SURFACE_Y, leftEdgeZ);
+      leftPositions.push(leftCrestX, bankHeight, leftCrestZ);
+      leftPositions.push(leftOuterX, bankHeight * 0.95, leftOuterZ);
 
       leftUvs.push(0, vCoord, 0.5, vCoord, 1, vCoord);
 
@@ -99,18 +103,14 @@ export function River({ track }: RiverProps) {
     // Build indices for banks (2 quads = 4 triangles per slice)
     for (let i = 0; i < count - 1; i++) {
       const rowL = i * 3;
-      // Slope quad (Waterline to Crest)
       leftIndices.push(rowL, rowL + 1, rowL + 3);
       leftIndices.push(rowL + 1, rowL + 4, rowL + 3);
-      // Top grass quad (Crest to Outer)
       leftIndices.push(rowL + 1, rowL + 2, rowL + 4);
       leftIndices.push(rowL + 2, rowL + 5, rowL + 4);
 
       const rowR = i * 3;
-      // Slope quad (Waterline to Crest)
       rightIndices.push(rowR, rowR + 3, rowR + 1);
       rightIndices.push(rowR + 1, rowR + 3, rowR + 4);
-      // Top grass quad (Crest to Outer)
       rightIndices.push(rowR + 1, rowR + 4, rowR + 2);
       rightIndices.push(rowR + 2, rowR + 4, rowR + 5);
     }
@@ -136,6 +136,18 @@ export function River({ track }: RiverProps) {
     return { waterGeo: wGeo, leftBankGeo: lGeo, rightBankGeo: rGeo };
   }, [track]);
 
+  // Compute exact yaw rotation angles for each checkpoint so arches face river flow
+  const checkpointRotations = useMemo(() => {
+    return track.checkpoints.map((cp) => {
+      const res = findNearestPointOnPolyline(cp.pos[0], cp.pos[1], track.centerline);
+      return Math.atan2(res.tangentX, res.tangentZ);
+    });
+  }, [track]);
+
+  const finishCheckpointIndex = track.checkpoints.length - 1;
+  const finishCp = track.checkpoints[finishCheckpointIndex];
+  const finishRotY = checkpointRotations[finishCheckpointIndex];
+
   return (
     <group>
       {/* 1. River Water Surface Ribbon */}
@@ -160,23 +172,40 @@ export function River({ track }: RiverProps) {
         <meshToonMaterial color={GAME_CONSTANTS.BANK_TOP_COLOR} />
       </mesh>
 
-      {/* 3. Start Gate Arch (Rustic wooden posts + hanging lanterns) */}
+      {/* 3. Start Gate Arch at track start position */}
       <StartGate position={[track.start.pos[0], 0, track.start.pos[1]]} />
 
-      {/* 4. Finish Gate Arch at final checkpoint */}
+      {/* 4. Checkpoint Gates (Checkpoints 0, 1, 2) - Requirement 2 */}
+      {track.checkpoints.slice(0, finishCheckpointIndex).map((cp, idx) => {
+        const isNext = nextCheckpoint === idx && phase === 'racing';
+        const isCompleted = nextCheckpoint > idx;
+        const rotY = checkpointRotations[idx];
+
+        return (
+          <CheckpointGate
+            key={`cp-gate-${idx}`}
+            index={idx}
+            position={[cp.pos[0], 0, cp.pos[1]]}
+            rotationY={rotY}
+            isNext={isNext}
+            isCompleted={isCompleted}
+          />
+        );
+      })}
+
+      {/* 5. Finish Gate Arch at final checkpoint - Not duplicated (Requirement 2) */}
       <FinishGate
-        position={[
-          track.checkpoints[track.checkpoints.length - 1].pos[0],
-          0,
-          track.checkpoints[track.checkpoints.length - 1].pos[1],
-        ]}
+        position={[finishCp.pos[0], 0, finishCp.pos[1]]}
+        rotationY={finishRotY}
+        isNext={nextCheckpoint === finishCheckpointIndex && phase === 'racing'}
+        isCompleted={nextCheckpoint > finishCheckpointIndex}
       />
     </group>
   );
 }
 
 /**
- * Rustic wooden Start Gate with festive anime banners/lanterns
+ * Rustic wooden Start Gate
  */
 function StartGate({ position }: { position: [number, number, number] }) {
   return (
@@ -197,7 +226,7 @@ function StartGate({ position }: { position: [number, number, number] }) {
         <meshToonMaterial color="#92400e" />
       </mesh>
 
-      {/* Lanterns on left and right */}
+      {/* Festive red lanterns */}
       <mesh position={[-7.5, 3.8, 0]}>
         <sphereGeometry args={[0.35, 12, 12]} />
         <meshBasicMaterial color="#ef4444" />
@@ -217,32 +246,135 @@ function StartGate({ position }: { position: [number, number, number] }) {
 }
 
 /**
- * Finish Line Gate
+ * Visible Checkpoint Gate (Requirement 2)
+ * Shows visible arch with floating target ring across the river.
+ * When isNext is true, it displays highlighted glowing colors.
  */
-function FinishGate({ position }: { position: [number, number, number] }) {
+function CheckpointGate({
+  position,
+  rotationY,
+  isNext,
+  isCompleted,
+}: {
+  index?: number;
+  position: [number, number, number];
+  rotationY: number;
+  isNext: boolean;
+  isCompleted: boolean;
+}) {
+  const postColor = isNext ? '#0284c7' : isCompleted ? '#166534' : '#475569';
+  const ringColor = isNext ? '#38bdf8' : isCompleted ? '#22c55e' : '#64748b';
+  const bannerColor = isNext ? '#0284c7' : isCompleted ? '#15803d' : '#334155';
+
   return (
-    <group position={position}>
-      {/* Left post */}
+    <group position={position} rotation={[0, rotationY, 0]}>
+      {/* Left post on bank */}
       <mesh position={[-8.5, 2.5, 0]}>
-        <cylinderGeometry args={[0.3, 0.35, 5, 8]} />
-        <meshToonMaterial color="#1e293b" />
+        <cylinderGeometry args={[0.28, 0.32, 5, 8]} />
+        <meshToonMaterial color={postColor} />
       </mesh>
-      {/* Right post */}
+
+      {/* Right post on bank */}
       <mesh position={[8.5, 2.5, 0]}>
-        <cylinderGeometry args={[0.3, 0.35, 5, 8]} />
-        <meshToonMaterial color="#1e293b" />
+        <cylinderGeometry args={[0.28, 0.32, 5, 8]} />
+        <meshToonMaterial color={postColor} />
       </mesh>
-      {/* Crossbar */}
+
+      {/* Top Crossbar */}
       <mesh position={[0, 4.8, 0]} rotation={[0, 0, Math.PI / 2]}>
-        <cylinderGeometry args={[0.25, 0.25, 17.5, 8]} />
-        <meshToonMaterial color="#0f172a" />
+        <cylinderGeometry args={[0.22, 0.22, 17.5, 8]} />
+        <meshToonMaterial color={postColor} />
       </mesh>
-      {/* Checkered style finish banner */}
+
+      {/* Floating Center Checkpoint Ring */}
+      <mesh position={[0, 2.5, 0]}>
+        <torusGeometry args={[3.2, isNext ? 0.22 : 0.14, 12, 32]} />
+        <meshBasicMaterial color={ringColor} transparent opacity={isNext ? 0.95 : 0.6} />
+      </mesh>
+
+      {/* Floating Checkpoint Number Banner */}
       <mesh position={[0, 4.2, 0]}>
-        <planeGeometry args={[6, 1]} />
-        <meshBasicMaterial color="#10b981" side={THREE.DoubleSide} />
+        <planeGeometry args={[4.2, 0.9]} />
+        <meshBasicMaterial color={bannerColor} side={THREE.DoubleSide} />
       </mesh>
+
+      {/* Glow marker dots on the posts when next */}
+      {isNext && (
+        <>
+          <mesh position={[-7.5, 3.8, 0]}>
+            <sphereGeometry args={[0.3, 12, 12]} />
+            <meshBasicMaterial color="#38bdf8" />
+          </mesh>
+          <mesh position={[7.5, 3.8, 0]}>
+            <sphereGeometry args={[0.3, 12, 12]} />
+            <meshBasicMaterial color="#38bdf8" />
+          </mesh>
+        </>
+      )}
     </group>
   );
 }
 
+/**
+ * Finish Line Gate (Checkpoint 3)
+ */
+function FinishGate({
+  position,
+  rotationY,
+  isNext,
+  isCompleted,
+}: {
+  position: [number, number, number];
+  rotationY: number;
+  isNext: boolean;
+  isCompleted: boolean;
+}) {
+  const finishPostColor = isNext ? '#d97706' : isCompleted ? '#166534' : '#1e293b';
+  const finishBannerColor = isNext ? '#10b981' : isCompleted ? '#059669' : '#0f172a';
+
+  return (
+    <group position={position} rotation={[0, rotationY, 0]}>
+      {/* Left post */}
+      <mesh position={[-8.5, 2.5, 0]}>
+        <cylinderGeometry args={[0.3, 0.35, 5, 8]} />
+        <meshToonMaterial color={finishPostColor} />
+      </mesh>
+      {/* Right post */}
+      <mesh position={[8.5, 2.5, 0]}>
+        <cylinderGeometry args={[0.3, 0.35, 5, 8]} />
+        <meshToonMaterial color={finishPostColor} />
+      </mesh>
+      {/* Crossbar */}
+      <mesh position={[0, 4.8, 0]} rotation={[0, 0, Math.PI / 2]}>
+        <cylinderGeometry args={[0.25, 0.25, 17.5, 8]} />
+        <meshToonMaterial color={finishPostColor} />
+      </mesh>
+
+      {/* Floating Finish Ring */}
+      <mesh position={[0, 2.5, 0]}>
+        <torusGeometry args={[3.4, isNext ? 0.25 : 0.16, 12, 32]} />
+        <meshBasicMaterial
+          color={isNext ? '#fbbf24' : '#10b981'}
+          transparent
+          opacity={isNext ? 0.95 : 0.6}
+        />
+      </mesh>
+
+      {/* Checkered style finish banner */}
+      <mesh position={[0, 4.2, 0]}>
+        <planeGeometry args={[6.5, 1.1]} />
+        <meshBasicMaterial color={finishBannerColor} side={THREE.DoubleSide} />
+      </mesh>
+
+      {/* Finish Lanterns */}
+      <mesh position={[-7.5, 3.8, 0]}>
+        <sphereGeometry args={[0.35, 12, 12]} />
+        <meshBasicMaterial color={isNext ? '#fbbf24' : '#10b981'} />
+      </mesh>
+      <mesh position={[7.5, 3.8, 0]}>
+        <sphereGeometry args={[0.35, 12, 12]} />
+        <meshBasicMaterial color={isNext ? '#fbbf24' : '#10b981'} />
+      </mesh>
+    </group>
+  );
+}

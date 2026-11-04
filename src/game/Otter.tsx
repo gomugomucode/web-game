@@ -9,6 +9,7 @@ import { otterTelemetry } from './telemetry';
 import { sharedOtterRefs } from './sharedRefs';
 import { findNearestPointOnPolyline } from './math';
 import { river01 } from './tracks/river01';
+import { useGameStore } from './useGameStore';
 
 interface OtterProps {
   inputRef: React.RefObject<InputState>;
@@ -53,6 +54,28 @@ export function Otter({ inputRef, tunables }: OtterProps) {
     const v = velRef.current;
     const pos = posRef.current;
 
+    // Read current race phase and store actions without subscribing React components
+    const gameState = useGameStore.getState();
+    const phase = gameState.phase;
+
+    // Race Flow Input Permissions (Milestone 4, Requirement 1 & 5)
+    let allowSteering = true;
+    let allowThrust = true;
+    let allowDash = true;
+
+    if (phase === 'countdown' || phase === 'idle') {
+      // Ignore player input during countdown (Requirement 1)
+      allowSteering = false;
+      allowThrust = false;
+      allowDash = false;
+      v.set(0, 0, 0);
+    } else if (phase === 'finished') {
+      // After finishing, lock steering input and let the otter coast (Requirement 5)
+      allowSteering = false;
+      allowThrust = false;
+      allowDash = false;
+    }
+
     // 2. Horizontal speed on X-Z plane
     const currentSpeed = Math.sqrt(v.x * v.x + v.z * v.z);
 
@@ -68,8 +91,10 @@ export function Otter({ inputRef, tunables }: OtterProps) {
     // Left Arrow / A (+1) turns left on screen (increases heading towards +X)
     // Right Arrow / D (-1) turns right on screen (decreases heading towards -X)
     let turnInput = 0;
-    if (input.left) turnInput += 1;
-    if (input.right) turnInput -= 1;
+    if (allowSteering) {
+      if (input.left) turnInput += 1;
+      if (input.right) turnInput -= 1;
+    }
 
     const turnFactor = clamp(
       currentSpeed / GAME_CONSTANTS.TURN_SPEED_REF,
@@ -89,7 +114,7 @@ export function Otter({ inputRef, tunables }: OtterProps) {
     const rightZ = sinH;
 
     // 6. Dash Trigger (Space edge detection)
-    const spaceIsPressed = input.dash;
+    const spaceIsPressed = input.dash && allowDash;
     const dashJustPressed = spaceIsPressed && !prevSpacePressedRef.current;
     prevSpacePressedRef.current = spaceIsPressed;
 
@@ -105,7 +130,7 @@ export function Otter({ inputRef, tunables }: OtterProps) {
     const isDashBoostActive = dashBoostTimerRef.current > 0;
 
     // 7. Thrust Acceleration (W / ArrowUp)
-    if (input.forward) {
+    if (input.forward && allowThrust) {
       const thrustMultiplier = isDashBoostActive ? tunables.dashThrustMult : 1.0;
       const accelMagnitude = tunables.accel * thrustMultiplier * dt;
       v.x += fwdX * accelMagnitude;
@@ -113,7 +138,7 @@ export function Otter({ inputRef, tunables }: OtterProps) {
     }
 
     // 8. Drag and Braking (S / ArrowDown applies extra drag without reversing)
-    const effectiveDrag = tunables.drag + (input.backward ? tunables.brakeDrag : 0);
+    const effectiveDrag = tunables.drag + (input.backward && allowThrust ? tunables.brakeDrag : 0);
     const dragMultiplier = Math.exp(-effectiveDrag * dt);
     v.x *= dragMultiplier;
     v.z *= dragMultiplier;
@@ -130,7 +155,6 @@ export function Otter({ inputRef, tunables }: OtterProps) {
     pos.z += v.z * dt;
 
     // 11. River Boundary Collision (Milestone 3, Section 6.2)
-    // Find nearest point on the track centerline
     const nearest = findNearestPointOnPolyline(pos.x, pos.z, river01.centerline);
     const maxAllowedDist = river01.halfWidth - GAME_CONSTANTS.BOUNDARY_COLLISION_RADIUS;
 
@@ -142,7 +166,6 @@ export function Otter({ inputRef, tunables }: OtterProps) {
       // Outward component of velocity into the bank
       const outwardVel = v.x * nearest.outwardX + v.z * nearest.outwardZ;
       if (outwardVel > 0) {
-        // Remove outward velocity so otter slides along the bank
         v.x -= outwardVel * nearest.outwardX;
         v.z -= outwardVel * nearest.outwardZ;
 
@@ -152,7 +175,34 @@ export function Otter({ inputRef, tunables }: OtterProps) {
       }
     }
 
-    // Optional restart key (R) resets otter to track start
+    // 12. Checkpoint Hit Detection (Milestone 4, Requirement 2 & 5)
+    // Only checked in order using squared-distance checks (zero allocations in useFrame)
+    if (phase === 'racing') {
+      const currentCpIndex = gameState.nextCheckpoint;
+      if (currentCpIndex < river01.checkpoints.length) {
+        const cp = river01.checkpoints[currentCpIndex];
+        const dx = pos.x - cp.pos[0];
+        const dz = pos.z - cp.pos[1];
+        const distSq = dx * dx + dz * dz;
+        const radiusSq = cp.radius * cp.radius;
+
+        if (distSq <= radiusSq) {
+          if (currentCpIndex === river01.checkpoints.length - 1) {
+            // Crossed the final checkpoint (Finish line)
+            const finishTimestamp = performance.now();
+            const totalElapsed = gameState.raceStartTime
+              ? finishTimestamp - gameState.raceStartTime
+              : 0;
+            gameState.finish(totalElapsed);
+          } else {
+            // Milestone checkpoint passed
+            gameState.hitCheckpoint(currentCpIndex);
+          }
+        }
+      }
+    }
+
+    // 13. Restart key (R) resets the race at any time (Requirement 7)
     if (input.restart) {
       pos.set(
         river01.start.pos[0],
@@ -164,20 +214,18 @@ export function Otter({ inputRef, tunables }: OtterProps) {
       dashCooldownTimerRef.current = 0;
       dashBoostTimerRef.current = 0;
       sharedOtterRefs.hasReset = true;
+      gameState.restart();
     }
 
-    // 12. Visual Feedback (Cosmetic only, Section 6.2)
-    // Bank roll: roll the mesh into turns
+    // 14. Visual Feedback (Cosmetic only, Section 6.2)
     const targetRoll = -turnInput * GAME_CONSTANTS.ROLL_MAX;
     const rollBlend = 1 - Math.exp(-GAME_CONSTANTS.ROLL_DAMP * dt);
     currentRollRef.current += (targetRoll - currentRollRef.current) * rollBlend;
 
-    // Swimming bob: small vertical bob that grows with speed
     const speedRatio = clamp(currentSpeed / (tunables.accel / tunables.drag), 0, 1.5);
     bobPhaseRef.current += dt * (GAME_CONSTANTS.BOB_FREQUENCY * Math.max(0.4, speedRatio));
     const bobOffsetY = Math.sin(bobPhaseRef.current) * GAME_CONSTANTS.BOB_AMPLITUDE * speedRatio;
 
-    // Squash & Stretch on dash
     let scaleX = 1.0;
     let scaleY = 1.0;
     let scaleZ = 1.0;
@@ -188,7 +236,7 @@ export function Otter({ inputRef, tunables }: OtterProps) {
       scaleY = scaleX;
     }
 
-    // 13. Apply transforms to Three.js Object3D hierarchy
+    // Apply transforms to Three.js Object3D hierarchy
     if (rootGroupRef.current) {
       rootGroupRef.current.position.set(pos.x, GAME_CONSTANTS.WATER_SURFACE_Y, pos.z);
       rootGroupRef.current.rotation.y = headingRef.current;
@@ -200,7 +248,7 @@ export function Otter({ inputRef, tunables }: OtterProps) {
       visualGroupRef.current.scale.set(scaleX, scaleY, scaleZ);
     }
 
-    // 14. Water Wake & Dash Streaks (Vision Document Effects)
+    // Water Wake & Dash Streaks
     if (wakeMeshRef.current) {
       const wakeScale = clamp(currentSpeed / 4.0, 0.4, 2.0);
       wakeMeshRef.current.scale.set(wakeScale, wakeScale * 1.5, 1);
@@ -211,12 +259,12 @@ export function Otter({ inputRef, tunables }: OtterProps) {
       dashStreaksRef.current.visible = isDashBoostActive;
     }
 
-    // 15. Update Shared Refs for CameraRig (Milestone 2)
+    // Update Shared Refs for CameraRig (Milestone 2)
     sharedOtterRefs.position.copy(pos);
     sharedOtterRefs.heading = h;
     sharedOtterRefs.isDashing = isDashBoostActive;
 
-    // 16. Update Telemetry Store for live HUD without React re-renders
+    // Update Telemetry Store for live HUD without React re-renders
     otterTelemetry.speed = currentSpeed;
     const deg = ((h * (180 / Math.PI)) % 360 + 360) % 360;
     otterTelemetry.headingDeg = deg;
