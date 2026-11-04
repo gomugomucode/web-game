@@ -46,7 +46,7 @@ export function Hud({ tunables }: HudProps) {
   const countdownTextRef = useRef<HTMLSpanElement>(null);
 
   const countdownStartTimeRef = useRef<number | null>(null);
-  const lastResetTickRef = useRef<number>(-1);
+  const lastRunIdRef = useRef<number>(-1);
 
   // Global keyboard shortcuts for R (restart) and Space/Enter (ready screen start)
   useEffect(() => {
@@ -79,9 +79,9 @@ export function Hud({ tunables }: HudProps) {
     const updateLoop = (timestamp: number) => {
       const gameState = useGameStore.getState();
 
-      // Clear countdown ref whenever resetTick changes so countdown restarts cleanly
-      if (gameState.resetTick !== lastResetTickRef.current) {
-        lastResetTickRef.current = gameState.resetTick;
+      // Clear countdown ref whenever runId changes so countdown restarts cleanly
+      if (gameState.runId !== lastRunIdRef.current) {
+        lastRunIdRef.current = gameState.runId;
         countdownStartTimeRef.current = null;
       }
 

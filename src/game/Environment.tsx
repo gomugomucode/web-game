@@ -72,10 +72,10 @@ export function Environment() {
         color="#fffbeb"
       />
 
-      {/* 4. Surrounding Valley Ground Plane */}
+      {/* 4. Surrounding Valley Ground Plane (lowered below water surface and riverbed to prevent z-fighting/occlusion) */}
       <mesh
         rotation={[-Math.PI / 2, 0, 0]}
-        position={[75, -0.05, 70]}
+        position={[75, -0.25, 70]}
       >
         <planeGeometry args={[600, 600]} />
         <meshToonMaterial color={GAME_CONSTANTS.GROUND_VALLEY_COLOR} />

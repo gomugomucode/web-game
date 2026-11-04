@@ -151,11 +151,9 @@ export function River({ track }: RiverProps) {
   return (
     <group>
       {/* 1. River Water Surface Ribbon */}
-      <mesh geometry={waterGeo}>
+      <mesh geometry={waterGeo} renderOrder={1}>
         <meshToonMaterial
           color={GAME_CONSTANTS.WATER_SURFACE_COLOR}
-          transparent
-          opacity={0.92}
         />
       </mesh>
 

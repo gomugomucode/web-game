@@ -38,56 +38,14 @@ export function Otter({ inputRef, tunables }: OtterProps) {
   // Cosmetic visual feedback refs
   const currentRollRef = useRef(0);
   const bobPhaseRef = useRef(0);
-  const lastResetTickRef = useRef(0);
+  const lastRunIdRef = useRef(useGameStore.getState().runId);
+  const prevRestartRef = useRef(false);
 
   // Object3D container references
   const rootGroupRef = useRef<THREE.Group>(null);
   const visualGroupRef = useRef<THREE.Group>(null);
   const wakeMeshRef = useRef<THREE.Mesh>(null);
   const dashStreaksRef = useRef<THREE.Group>(null);
-
-  const resetOtterToStart = () => {
-    posRef.current.set(
-      river01.start.pos[0],
-      GAME_CONSTANTS.WATER_SURFACE_Y,
-      river01.start.pos[1]
-    );
-    velRef.current.set(0, 0, 0);
-    headingRef.current = river01.start.heading;
-    dashCooldownTimerRef.current = 0;
-    dashBoostTimerRef.current = 0;
-    currentRollRef.current = 0;
-    bobPhaseRef.current = 0;
-    prevSpacePressedRef.current = false;
-
-    if (rootGroupRef.current) {
-      rootGroupRef.current.position.set(
-        river01.start.pos[0],
-        GAME_CONSTANTS.WATER_SURFACE_Y,
-        river01.start.pos[1]
-      );
-      rootGroupRef.current.rotation.y = river01.start.heading;
-    }
-
-    if (visualGroupRef.current) {
-      visualGroupRef.current.position.set(0, 0, 0);
-      visualGroupRef.current.rotation.set(0, 0, 0);
-      visualGroupRef.current.scale.set(1, 1, 1);
-    }
-
-    sharedOtterRefs.position.copy(posRef.current);
-    sharedOtterRefs.heading = river01.start.heading;
-    sharedOtterRefs.isDashing = false;
-    sharedOtterRefs.hasReset = true;
-
-    otterTelemetry.speed = 0;
-    otterTelemetry.headingDeg = 0;
-    otterTelemetry.dashCooldownRemaining = 0;
-    otterTelemetry.isDashing = false;
-    otterTelemetry.position[0] = river01.start.pos[0];
-    otterTelemetry.position[1] = GAME_CONSTANTS.WATER_SURFACE_Y;
-    otterTelemetry.position[2] = river01.start.pos[1];
-  };
 
   useFrame((_, delta) => {
     // 1. Clamp dt according to Section 4
@@ -102,20 +60,59 @@ export function Otter({ inputRef, tunables }: OtterProps) {
     const gameState = useGameStore.getState();
     const phase = gameState.phase;
 
-    // Sync external reset (UI Race Again button or startCountdown)
-    if (gameState.resetTick !== lastResetTickRef.current) {
-      lastResetTickRef.current = gameState.resetTick;
-      resetOtterToStart();
+    // Detect a runId change at the top of useFrame and reset to start (Requirement 1)
+    if (gameState.runId !== lastRunIdRef.current) {
+      lastRunIdRef.current = gameState.runId;
+      pos.set(
+        river01.start.pos[0],
+        GAME_CONSTANTS.WATER_SURFACE_Y,
+        river01.start.pos[1]
+      );
+      v.set(0, 0, 0);
+      headingRef.current = river01.start.heading;
+      dashCooldownTimerRef.current = 0;
+      dashBoostTimerRef.current = 0;
+      prevSpacePressedRef.current = false;
+      currentRollRef.current = 0;
+      bobPhaseRef.current = 0;
+
+      if (rootGroupRef.current) {
+        rootGroupRef.current.position.set(
+          river01.start.pos[0],
+          GAME_CONSTANTS.WATER_SURFACE_Y,
+          river01.start.pos[1]
+        );
+        rootGroupRef.current.rotation.y = river01.start.heading;
+      }
+
+      if (visualGroupRef.current) {
+        visualGroupRef.current.position.set(0, 0, 0);
+        visualGroupRef.current.rotation.set(0, 0, 0);
+        visualGroupRef.current.scale.set(1, 1, 1);
+      }
+
+      sharedOtterRefs.position.copy(pos);
+      sharedOtterRefs.heading = river01.start.heading;
+      sharedOtterRefs.isDashing = false;
+      sharedOtterRefs.hasReset = true; // camera snap
+
+      otterTelemetry.speed = 0;
+      otterTelemetry.headingDeg = 0;
+      otterTelemetry.dashCooldownRemaining = 0;
+      otterTelemetry.isDashing = false;
+      otterTelemetry.position[0] = river01.start.pos[0];
+      otterTelemetry.position[1] = GAME_CONSTANTS.WATER_SURFACE_Y;
+      otterTelemetry.position[2] = river01.start.pos[1];
     }
 
-    // Restart key (R) resets the race at any time (Requirement 7)
-    if (input.restart) {
-      resetOtterToStart();
-      gameState.restart();
-      lastResetTickRef.current = useGameStore.getState().resetTick;
+    // Edge-detected R key restarts via store restart() (Requirement 1)
+    const restartJustPressed = input.restart && !prevRestartRef.current;
+    prevRestartRef.current = input.restart;
+    if (restartJustPressed) {
+      useGameStore.getState().restart();
     }
 
-    // Ready screen start trigger (Enter or Space)
+    // Ready screen start trigger (Enter or Space) (Requirement 2)
     if (phase === 'idle' && input.start) {
       gameState.startCountdown();
     }

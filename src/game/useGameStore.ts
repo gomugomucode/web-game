@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { GAME_CONSTANTS } from './constants';
+import { river01 } from './tracks/river01';
 
 export type RacePhase = 'idle' | 'countdown' | 'racing' | 'finished';
 
@@ -11,7 +12,7 @@ export interface GameStoreState {
   bestTime: number | null;
   nextCheckpoint: number;
   trackId: string;
-  resetTick: number;
+  runId: number;
 
   // Actions
   startCountdown: () => void;
@@ -57,7 +58,7 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
   bestTime: loadStoredBestTime('river-01'),
   nextCheckpoint: 0,
   trackId: 'river-01',
-  resetTick: 0,
+  runId: 0,
 
   startCountdown: () =>
     set((state) => ({
@@ -65,7 +66,7 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
       raceStartTime: null,
       finishTime: null,
       nextCheckpoint: 0,
-      resetTick: state.resetTick + 1,
+      runId: state.runId + 1,
     })),
 
   startRace: () =>
@@ -92,7 +93,7 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
       phase: 'finished',
       finishTime: time,
       bestTime: finalBest,
-      nextCheckpoint: 4, // All checkpoints completed
+      nextCheckpoint: river01.checkpoints.length, // Dynamic checkpoints length
     });
   },
 
@@ -105,7 +106,7 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
       raceStartTime: null,
       finishTime: null,
       nextCheckpoint: 0,
-      resetTick: s.resetTick + 1,
+      runId: s.runId + 1,
       bestTime: currentBest ?? state.bestTime,
     }));
   },
