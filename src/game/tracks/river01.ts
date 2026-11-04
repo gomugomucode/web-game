@@ -8,6 +8,7 @@ export const river01: Track = {
   id: 'river-01',
   name: 'Calm Bend',
   centerline: [
+    [0, -30], // Extended run-up before start so camera and start gate sit fully on water
     [0, 0],
     [0, 60],
     [25, 110],
@@ -16,6 +17,7 @@ export const river01: Track = {
     [150, 100],
     [150, 40],
     [120, 0],
+    [102, -24], // Extended run-off past finish gate so coasting otter stays on water
   ],
   halfWidth: 9,
   start: {

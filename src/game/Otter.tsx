@@ -38,12 +38,56 @@ export function Otter({ inputRef, tunables }: OtterProps) {
   // Cosmetic visual feedback refs
   const currentRollRef = useRef(0);
   const bobPhaseRef = useRef(0);
+  const lastResetTickRef = useRef(0);
 
   // Object3D container references
   const rootGroupRef = useRef<THREE.Group>(null);
   const visualGroupRef = useRef<THREE.Group>(null);
   const wakeMeshRef = useRef<THREE.Mesh>(null);
   const dashStreaksRef = useRef<THREE.Group>(null);
+
+  const resetOtterToStart = () => {
+    posRef.current.set(
+      river01.start.pos[0],
+      GAME_CONSTANTS.WATER_SURFACE_Y,
+      river01.start.pos[1]
+    );
+    velRef.current.set(0, 0, 0);
+    headingRef.current = river01.start.heading;
+    dashCooldownTimerRef.current = 0;
+    dashBoostTimerRef.current = 0;
+    currentRollRef.current = 0;
+    bobPhaseRef.current = 0;
+    prevSpacePressedRef.current = false;
+
+    if (rootGroupRef.current) {
+      rootGroupRef.current.position.set(
+        river01.start.pos[0],
+        GAME_CONSTANTS.WATER_SURFACE_Y,
+        river01.start.pos[1]
+      );
+      rootGroupRef.current.rotation.y = river01.start.heading;
+    }
+
+    if (visualGroupRef.current) {
+      visualGroupRef.current.position.set(0, 0, 0);
+      visualGroupRef.current.rotation.set(0, 0, 0);
+      visualGroupRef.current.scale.set(1, 1, 1);
+    }
+
+    sharedOtterRefs.position.copy(posRef.current);
+    sharedOtterRefs.heading = river01.start.heading;
+    sharedOtterRefs.isDashing = false;
+    sharedOtterRefs.hasReset = true;
+
+    otterTelemetry.speed = 0;
+    otterTelemetry.headingDeg = 0;
+    otterTelemetry.dashCooldownRemaining = 0;
+    otterTelemetry.isDashing = false;
+    otterTelemetry.position[0] = river01.start.pos[0];
+    otterTelemetry.position[1] = GAME_CONSTANTS.WATER_SURFACE_Y;
+    otterTelemetry.position[2] = river01.start.pos[1];
+  };
 
   useFrame((_, delta) => {
     // 1. Clamp dt according to Section 4
@@ -58,13 +102,31 @@ export function Otter({ inputRef, tunables }: OtterProps) {
     const gameState = useGameStore.getState();
     const phase = gameState.phase;
 
+    // Sync external reset (UI Race Again button or startCountdown)
+    if (gameState.resetTick !== lastResetTickRef.current) {
+      lastResetTickRef.current = gameState.resetTick;
+      resetOtterToStart();
+    }
+
+    // Restart key (R) resets the race at any time (Requirement 7)
+    if (input.restart) {
+      resetOtterToStart();
+      gameState.restart();
+      lastResetTickRef.current = useGameStore.getState().resetTick;
+    }
+
+    // Ready screen start trigger (Enter or Space)
+    if (phase === 'idle' && input.start) {
+      gameState.startCountdown();
+    }
+
     // Race Flow Input Permissions (Milestone 4, Requirement 1 & 5)
     let allowSteering = true;
     let allowThrust = true;
     let allowDash = true;
 
     if (phase === 'countdown' || phase === 'idle') {
-      // Ignore player input during countdown (Requirement 1)
+      // Ignore player input during countdown and idle (Requirement 1)
       allowSteering = false;
       allowThrust = false;
       allowDash = false;
@@ -202,22 +264,7 @@ export function Otter({ inputRef, tunables }: OtterProps) {
       }
     }
 
-    // 13. Restart key (R) resets the race at any time (Requirement 7)
-    if (input.restart) {
-      pos.set(
-        river01.start.pos[0],
-        GAME_CONSTANTS.WATER_SURFACE_Y,
-        river01.start.pos[1]
-      );
-      v.set(0, 0, 0);
-      headingRef.current = river01.start.heading;
-      dashCooldownTimerRef.current = 0;
-      dashBoostTimerRef.current = 0;
-      sharedOtterRefs.hasReset = true;
-      gameState.restart();
-    }
-
-    // 14. Visual Feedback (Cosmetic only, Section 6.2)
+    // 13. Visual Feedback (Cosmetic only, Section 6.2)
     const targetRoll = -turnInput * GAME_CONSTANTS.ROLL_MAX;
     const rollBlend = 1 - Math.exp(-GAME_CONSTANTS.ROLL_DAMP * dt);
     currentRollRef.current += (targetRoll - currentRollRef.current) * rollBlend;
@@ -261,12 +308,12 @@ export function Otter({ inputRef, tunables }: OtterProps) {
 
     // Update Shared Refs for CameraRig (Milestone 2)
     sharedOtterRefs.position.copy(pos);
-    sharedOtterRefs.heading = h;
+    sharedOtterRefs.heading = headingRef.current;
     sharedOtterRefs.isDashing = isDashBoostActive;
 
     // Update Telemetry Store for live HUD without React re-renders
     otterTelemetry.speed = currentSpeed;
-    const deg = ((h * (180 / Math.PI)) % 360 + 360) % 360;
+    const deg = ((headingRef.current * (180 / Math.PI)) % 360 + 360) % 360;
     otterTelemetry.headingDeg = deg;
     otterTelemetry.dashCooldownRemaining = dashCooldownTimerRef.current;
     otterTelemetry.isDashing = isDashBoostActive;

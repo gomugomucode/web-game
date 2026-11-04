@@ -11,6 +11,7 @@ export interface GameStoreState {
   bestTime: number | null;
   nextCheckpoint: number;
   trackId: string;
+  resetTick: number;
 
   // Actions
   startCountdown: () => void;
@@ -50,20 +51,22 @@ function saveStoredBestTime(trackId: string, time: number): void {
 }
 
 export const useGameStore = create<GameStoreState>((set, get) => ({
-  phase: 'countdown', // Starts in countdown on load/restart (Section 6.5)
+  phase: 'idle', // Starts on ready screen (idle) on page load
   raceStartTime: null,
   finishTime: null,
   bestTime: loadStoredBestTime('river-01'),
   nextCheckpoint: 0,
   trackId: 'river-01',
+  resetTick: 0,
 
   startCountdown: () =>
-    set({
+    set((state) => ({
       phase: 'countdown',
       raceStartTime: null,
       finishTime: null,
       nextCheckpoint: 0,
-    }),
+      resetTick: state.resetTick + 1,
+    })),
 
   startRace: () =>
     set({
@@ -97,12 +100,13 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
     const state = get();
     // Reload best time from storage in case it updated
     const currentBest = loadStoredBestTime(state.trackId);
-    set({
+    set((s) => ({
       phase: 'countdown',
       raceStartTime: null,
       finishTime: null,
       nextCheckpoint: 0,
+      resetTick: s.resetTick + 1,
       bestTime: currentBest ?? state.bestTime,
-    });
+    }));
   },
 }));
