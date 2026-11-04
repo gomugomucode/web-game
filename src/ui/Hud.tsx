@@ -30,6 +30,7 @@ export function Hud({ tunables }: HudProps) {
   const finishTime = useGameStore((state) => state.finishTime);
   const bestTime = useGameStore((state) => state.bestTime);
   const restart = useGameStore((state) => state.restart);
+  const startCountdown = useGameStore((state) => state.startCountdown);
 
   // High-frequency DOM references updated in rAF loop (zero React tree re-renders)
   const timerTextRef = useRef<HTMLSpanElement>(null);
@@ -45,6 +46,31 @@ export function Hud({ tunables }: HudProps) {
   const countdownTextRef = useRef<HTMLSpanElement>(null);
 
   const countdownStartTimeRef = useRef<number | null>(null);
+  const lastResetTickRef = useRef<number>(-1);
+
+  // Global keyboard shortcuts for R (restart) and Space/Enter (ready screen start)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't intercept if user is typing in a form or input field
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) {
+        return;
+      }
+
+      if (e.code === 'KeyR' || e.key.toLowerCase() === 'r') {
+        useGameStore.getState().restart();
+      } else if (
+        (e.code === 'Enter' || e.code === 'NumpadEnter' || e.code === 'Space') &&
+        useGameStore.getState().phase === 'idle'
+      ) {
+        e.preventDefault();
+        useGameStore.getState().startCountdown();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   useEffect(() => {
     let animId: number;
@@ -52,6 +78,12 @@ export function Hud({ tunables }: HudProps) {
 
     const updateLoop = (timestamp: number) => {
       const gameState = useGameStore.getState();
+
+      // Clear countdown ref whenever resetTick changes so countdown restarts cleanly
+      if (gameState.resetTick !== lastResetTickRef.current) {
+        lastResetTickRef.current = gameState.resetTick;
+        countdownStartTimeRef.current = null;
+      }
 
       // --- 1. Countdown Phase Handling (Requirement 1: 3, 2, 1, GO) ---
       if (gameState.phase === 'countdown') {
@@ -228,6 +260,56 @@ export function Hud({ tunables }: HudProps) {
         <span ref={countdownTextRef} className="text-9xl font-black" />
       </div>
 
+      {/* Ready Screen Overlay (Bug 2 Fix) */}
+      {phase === 'idle' && (
+        <div className="pointer-events-auto absolute inset-0 z-20 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-slate-900/95 border-2 border-sky-500/50 rounded-3xl p-8 max-w-lg w-full mx-4 shadow-[0_0_50px_rgba(56,189,248,0.25)] text-center flex flex-col items-center gap-6">
+            <div className="flex items-center gap-3">
+              <span className="text-4xl">🦦</span>
+              <div>
+                <h2 className="text-3xl sm:text-4xl font-black tracking-wide bg-gradient-to-r from-sky-400 via-teal-300 to-emerald-400 bg-clip-text text-transparent">
+                  OTTER RUN
+                </h2>
+                <p className="text-sm text-emerald-400 font-semibold mt-0.5">Track 01: Calm Bend</p>
+              </div>
+            </div>
+
+            <p className="text-sm text-slate-300 leading-relaxed max-w-md">
+              Navigate the winding river, glide through the checkpoint arches, and race for the best time!
+            </p>
+
+            <div className="w-full bg-slate-800/80 rounded-2xl p-4 border border-white/10 space-y-2 text-xs text-slate-300 text-left">
+              <div className="font-bold text-sky-400 uppercase tracking-wider text-[11px] mb-2">Controls Overview</div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Swim & Steer</span>
+                <span className="font-mono text-amber-300 font-bold">W / A / S / D  or  Arrow Keys</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Dash Boost</span>
+                <span className="font-mono text-amber-300 font-bold">Space</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Restart Race</span>
+                <span className="font-mono text-amber-300 font-bold">R (anytime)</span>
+              </div>
+            </div>
+
+            <div className="w-full space-y-3">
+              <button
+                type="button"
+                onClick={() => startCountdown()}
+                className="w-full py-4 px-8 bg-gradient-to-r from-sky-500 via-teal-400 to-emerald-400 hover:from-sky-400 hover:via-teal-300 hover:to-emerald-300 text-slate-950 font-black text-lg uppercase tracking-wider rounded-2xl shadow-xl transition-all active:scale-95 cursor-pointer"
+              >
+                Start Race
+              </button>
+              <p className="text-xs text-slate-400 flex items-center justify-center gap-1.5">
+                Press <kbd className="px-2 py-0.5 bg-slate-800 rounded border border-slate-700 text-amber-300 font-mono font-bold">Enter</kbd> or <kbd className="px-2 py-0.5 bg-slate-800 rounded border border-slate-700 text-amber-300 font-mono font-bold">Space</kbd> to begin
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Finish Results Panel (Requirement 5 & 6) */}
       {phase === 'finished' && finishTime !== null && (
         <div className="pointer-events-auto absolute inset-0 flex items-center justify-center bg-black/50 backdrop-blur-sm">
@@ -286,7 +368,13 @@ export function Hud({ tunables }: HudProps) {
           <div className="flex justify-between items-center mb-2">
             <h2 className="text-xs uppercase tracking-wider text-slate-400 font-bold">Controls</h2>
             <span className="text-[11px] text-sky-400 font-medium">
-              {phase === 'countdown' ? 'Input locked during countdown' : phase === 'finished' ? 'Coasting' : 'Racing active'}
+              {phase === 'idle'
+                ? 'Ready to start'
+                : phase === 'countdown'
+                ? 'Input locked during countdown'
+                : phase === 'finished'
+                ? 'Coasting'
+                : 'Racing active'}
             </span>
           </div>
           <div className="grid grid-cols-2 gap-y-2 text-xs text-slate-200">
