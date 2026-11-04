@@ -16,9 +16,9 @@ export function River({ track }: RiverProps) {
   const nextCheckpoint = useGameStore((state) => state.nextCheckpoint);
   const phase = useGameStore((state) => state.phase);
 
-  // Pre-calculate smoothed spline centerline points and meshes
+  // Pre-calculate smoothed spline centerline points and meshes (Step 0)
   const { waterGeo, leftBankGeo, rightBankGeo } = useMemo(() => {
-    const smoothed = smoothCenterline(track.centerline, 14);
+    const smoothed = track.smoothedCenterline ?? smoothCenterline(track.centerline, 14);
     const count = smoothed.length;
     const halfWidth = track.halfWidth;
     const bankHeight = GAME_CONSTANTS.BANK_HEIGHT;
@@ -138,8 +138,9 @@ export function River({ track }: RiverProps) {
 
   // Compute exact yaw rotation angles for each checkpoint so arches face river flow
   const checkpointRotations = useMemo(() => {
+    const center = track.smoothedCenterline ?? track.centerline;
     return track.checkpoints.map((cp) => {
-      const res = findNearestPointOnPolyline(cp.pos[0], cp.pos[1], track.centerline);
+      const res = findNearestPointOnPolyline(cp.pos[0], cp.pos[1], center);
       return Math.atan2(res.tangentX, res.tangentZ);
     });
   }, [track]);

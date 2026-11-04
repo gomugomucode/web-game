@@ -10,6 +10,7 @@ export interface OtterTelemetry {
   dashCooldownRemaining: number;
   isDashing: boolean;
   position: [number, number, number];
+  inCurrent: boolean;
 }
 
 export const otterTelemetry: OtterTelemetry = {
@@ -18,5 +19,6 @@ export const otterTelemetry: OtterTelemetry = {
   dashCooldownRemaining: 0,
   isDashing: false,
   position: [0, 0, 0],
+  inCurrent: false,
 };
 

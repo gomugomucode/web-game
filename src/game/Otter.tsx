@@ -100,6 +100,7 @@ export function Otter({ inputRef, tunables }: OtterProps) {
       otterTelemetry.headingDeg = 0;
       otterTelemetry.dashCooldownRemaining = 0;
       otterTelemetry.isDashing = false;
+      otterTelemetry.inCurrent = false;
       otterTelemetry.position[0] = river01.start.pos[0];
       otterTelemetry.position[1] = GAME_CONSTANTS.WATER_SURFACE_Y;
       otterTelemetry.position[2] = river01.start.pos[1];
@@ -209,12 +210,33 @@ export function Otter({ inputRef, tunables }: OtterProps) {
     v.x = vForward * fwdX + vSide * rightX;
     v.z = vForward * fwdZ + vSide * rightZ;
 
+    // 9.5 River Currents Acceleration (Milestone 5, Section 6.3 & 9)
+    let inAnyCurrent = false;
+    if (phase === 'racing' || phase === 'finished') {
+      const currentList = river01.currents;
+      const strengthScale = tunables.currentStrength / GAME_CONSTANTS.CURRENT_STRENGTH;
+      for (let i = 0; i < currentList.length; i++) {
+        const cur = currentList[i];
+        const curRes = findNearestPointOnPolyline(pos.x, pos.z, cur.points);
+        const d = curRes.distance;
+        if (d < cur.width) {
+          inAnyCurrent = true;
+          const ratio = d / cur.width;
+          const falloff = 1 - ratio * ratio;
+          const effAccel = (cur.strength * strengthScale) * falloff * dt;
+          v.x += curRes.tangentX * effAccel;
+          v.z += curRes.tangentZ * effAccel;
+        }
+      }
+    }
+
     // 10. Position update on X-Z plane
     pos.x += v.x * dt;
     pos.z += v.z * dt;
 
-    // 11. River Boundary Collision (Milestone 3, Section 6.2)
-    const nearest = findNearestPointOnPolyline(pos.x, pos.z, river01.centerline);
+    // 11. River Boundary Collision (Milestone 3 & Milestone 5 Step 0, Section 6.2)
+    const boundaryCenterline = river01.smoothedCenterline ?? river01.centerline;
+    const nearest = findNearestPointOnPolyline(pos.x, pos.z, boundaryCenterline);
     const maxAllowedDist = river01.halfWidth - GAME_CONSTANTS.BOUNDARY_COLLISION_RADIUS;
 
     if (nearest.distance > maxAllowedDist) {
@@ -314,6 +336,7 @@ export function Otter({ inputRef, tunables }: OtterProps) {
     otterTelemetry.headingDeg = deg;
     otterTelemetry.dashCooldownRemaining = dashCooldownTimerRef.current;
     otterTelemetry.isDashing = isDashBoostActive;
+    otterTelemetry.inCurrent = inAnyCurrent;
     otterTelemetry.position[0] = pos.x;
     otterTelemetry.position[1] = pos.y;
     otterTelemetry.position[2] = pos.z;

@@ -7,6 +7,7 @@ import { GAME_CONSTANTS, DEFAULT_MOVEMENT_TUNABLES, MovementTunables } from './c
 import { useKeyboardInput } from './input';
 import { Otter } from './Otter';
 import { River } from './River';
+import { Currents } from './Currents';
 import { Environment } from './Environment';
 import { CameraRig } from './CameraRig';
 import { river01 } from './tracks/river01';
@@ -81,6 +82,13 @@ export function Game() {
       step: 0.1,
       label: 'Dash Thrust Mult',
     },
+    currentStrength: {
+      value: DEFAULT_MOVEMENT_TUNABLES.currentStrength,
+      min: 0,
+      max: 20,
+      step: 0.5,
+      label: 'Current Strength (m/s²)',
+    },
   }) as MovementTunables;
 
   return (
@@ -112,6 +120,9 @@ export function Game() {
 
         {/* River Track: procedural water ribbon, raised grass banks, start and finish gates */}
         <River track={river01} />
+
+        {/* Milestone 5: River currents with lighter tinted ribbon strips and flow streaks */}
+        <Currents track={river01} />
 
         {/* Otter mesh, movement loop, and river bank boundary collision */}
         <Otter inputRef={inputRef} tunables={tunables} />

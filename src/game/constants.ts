@@ -45,6 +45,15 @@ export const GAME_CONSTANTS = {
   CHECKPOINT_RING_RADIUS: 4.0, // Radius of floating checkpoint target ring
   BEST_TIME_STORAGE_PREFIX: 'otter-run:best:', // localStorage key prefix
 
+  // Currents (Milestone 5, Section 6.3 & 9)
+  CURRENT_STRENGTH: 8.0, // Base acceleration added by river currents (m/s²)
+  CURRENT_WIDTH: 3.0, // Default influence width of river currents (m)
+  CURRENT_STRIP_HEIGHT: 0.006, // Height above water surface to avoid z-fighting (m)
+  CURRENT_STREAK_COUNT: 40, // Number of flow streaks per current
+  CURRENT_STREAK_SPEED: 9.0, // Visual flow speed of streak particles (m/s)
+  CURRENT_TINT_COLOR: '#67e8f9', // Light cyan water tint along current polyline
+  CURRENT_STREAK_COLOR: '#ffffff', // White foam streak particles
+
   // Camera (Section 6.4 & Milestone 2)
   CAMERA_BEHIND_DISTANCE: 7.0, // Units behind the otter along heading
   CAMERA_HEIGHT: 3.5, // Units above the water/otter
@@ -89,6 +98,7 @@ export type MovementTunables = {
   dashCooldown: number;
   dashDuration: number;
   dashThrustMult: number;
+  currentStrength: number;
 };
 
 export const DEFAULT_MOVEMENT_TUNABLES: MovementTunables = {
@@ -101,4 +111,5 @@ export const DEFAULT_MOVEMENT_TUNABLES: MovementTunables = {
   dashCooldown: GAME_CONSTANTS.DASH_COOLDOWN,
   dashDuration: GAME_CONSTANTS.DASH_DURATION,
   dashThrustMult: GAME_CONSTANTS.DASH_THRUST_MULT,
+  currentStrength: GAME_CONSTANTS.CURRENT_STRENGTH,
 };

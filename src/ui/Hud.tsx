@@ -40,6 +40,7 @@ export function Hud({ tunables }: HudProps) {
   const checkpointTextRef = useRef<HTMLSpanElement>(null);
   const dashStatusRef = useRef<HTMLSpanElement>(null);
   const dashBarRef = useRef<HTMLDivElement>(null);
+  const inCurrentBadgeRef = useRef<HTMLSpanElement>(null);
 
   // Countdown overlay DOM refs
   const countdownOverlayRef = useRef<HTMLDivElement>(null);
@@ -153,6 +154,10 @@ export function Hud({ tunables }: HudProps) {
 
         if (speedTextRef.current) {
           speedTextRef.current.textContent = otterTelemetry.speed.toFixed(1);
+        }
+
+        if (inCurrentBadgeRef.current) {
+          inCurrentBadgeRef.current.style.display = otterTelemetry.inCurrent ? 'inline-block' : 'none';
         }
 
         const currentCruiseSpeed = (tunables.accel / tunables.drag).toFixed(1);
@@ -404,7 +409,16 @@ export function Hud({ tunables }: HudProps) {
         {/* Live Telemetry Card (Speed & Dash Cooldown) */}
         <div className="bg-slate-900/85 backdrop-blur-md rounded-2xl p-5 border border-white/10 shadow-xl flex flex-col gap-3 justify-self-end w-full max-w-sm">
           <div className="flex justify-between items-baseline">
-            <span className="text-xs uppercase tracking-wider text-slate-400 font-bold">Speed</span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs uppercase tracking-wider text-slate-400 font-bold">Speed</span>
+              <span
+                ref={inCurrentBadgeRef}
+                style={{ display: 'none' }}
+                className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-400 text-slate-950 shadow-md animate-pulse"
+              >
+                IN CURRENT
+              </span>
+            </div>
             <div className="text-right">
               <span ref={speedTextRef} className="text-3xl font-black font-mono text-sky-400">0.0</span>
               <span className="text-xs text-slate-400 ml-1">m/s</span>

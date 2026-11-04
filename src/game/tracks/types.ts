@@ -21,6 +21,7 @@ export interface Track {
   id: string;
   name: string;
   centerline: Vec2[];
+  smoothedCenterline?: Vec2[];
   halfWidth: number;
   start: {
     pos: Vec2;
