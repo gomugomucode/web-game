@@ -179,3 +179,4 @@ Rules:
 - All tunable constants in src/game/constants.ts.
 - Verify with `npx tsc --noEmit`, `npm run lint`, and `npm run build`.
 ```
+

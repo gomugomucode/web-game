@@ -37,6 +37,14 @@ export const GAME_CONSTANTS = {
   BANK_TOP_COLOR: '#22c55e', // Vibrant anime green grass
   BANK_SLOPE_COLOR: '#57534e', // Earthen river bank rock/soil
 
+  // Race Flow (Milestone 4, Section 6.5 & 6.6)
+  COUNTDOWN_STEP_SECONDS: 1.0, // Duration (seconds) for each countdown count (3, 2, 1)
+  COUNTDOWN_GO_SECONDS: 0.8, // Duration (seconds) that "GO!" banner remains visible
+  CHECKPOINT_GATE_WIDTH: 17.0, // Width between checkpoint arch posts
+  CHECKPOINT_GATE_HEIGHT: 4.8, // Height of checkpoint arch
+  CHECKPOINT_RING_RADIUS: 4.0, // Radius of floating checkpoint target ring
+  BEST_TIME_STORAGE_PREFIX: 'otter-run:best:', // localStorage key prefix
+
   // Camera (Section 6.4 & Milestone 2)
   CAMERA_BEHIND_DISTANCE: 7.0, // Units behind the otter along heading
   CAMERA_HEIGHT: 3.5, // Units above the water/otter
