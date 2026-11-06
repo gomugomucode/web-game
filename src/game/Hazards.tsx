@@ -4,6 +4,7 @@ import React from 'react';
 import * as THREE from 'three';
 import { Track } from './tracks/types';
 import { GAME_CONSTANTS } from './constants';
+import { threeStepGradientMap } from './toonGradient';
 
 interface HazardsProps {
   track: Track;
@@ -31,6 +32,7 @@ export function Hazards({ track }: HazardsProps) {
           <mesh position={[0, rock.radius * 0.45, 0]} rotation={[0.4, 0.8, 0.2]}>
             <dodecahedronGeometry args={[rock.radius, 1]} />
             <meshToonMaterial
+              gradientMap={threeStepGradientMap}
               color={GAME_CONSTANTS.HAZARD_ROCK_COLOR}
             />
           </mesh>

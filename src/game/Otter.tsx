@@ -10,6 +10,7 @@ import { sharedOtterRefs } from './sharedRefs';
 import { findNearestPointOnPolyline } from './math';
 import { river01 } from './tracks/river01';
 import { useGameStore } from './useGameStore';
+import { threeStepGradientMap } from './toonGradient';
 
 interface OtterProps {
   inputRef: React.RefObject<InputState>;
@@ -418,7 +419,10 @@ export function Otter({ inputRef, tunables }: OtterProps) {
               24,
             ]}
           />
-          <meshToonMaterial color="#8d5b34" />
+          <meshToonMaterial
+            gradientMap={threeStepGradientMap}
+            color="#8d5b34"
+          />
         </mesh>
 
         {/* Inverted-hull dark outline (Section 8) */}
@@ -452,13 +456,19 @@ export function Otter({ inputRef, tunables }: OtterProps) {
               16,
             ]}
           />
-          <meshToonMaterial color="#d8c5a4" />
+          <meshToonMaterial
+            gradientMap={threeStepGradientMap}
+            color="#d8c5a4"
+          />
         </mesh>
 
         {/* Cute snout at front (+Z) */}
         <mesh position={[0, 0.15, 0.85]}>
           <sphereGeometry args={[0.22, 16, 16]} />
-          <meshToonMaterial color="#c2a47a" />
+          <meshToonMaterial
+            gradientMap={threeStepGradientMap}
+            color="#c2a47a"
+          />
         </mesh>
 
         {/* Nose dot at front tip */}
@@ -480,19 +490,28 @@ export function Otter({ inputRef, tunables }: OtterProps) {
         {/* Left ear */}
         <mesh position={[0.26, 0.42, 0.4]} rotation={[0, 0, -0.3]}>
           <sphereGeometry args={[0.09, 12, 12]} />
-          <meshToonMaterial color="#734524" />
+          <meshToonMaterial
+            gradientMap={threeStepGradientMap}
+            color="#734524"
+          />
         </mesh>
 
         {/* Right ear */}
         <mesh position={[-0.26, 0.42, 0.4]} rotation={[0, 0, 0.3]}>
           <sphereGeometry args={[0.09, 12, 12]} />
-          <meshToonMaterial color="#734524" />
+          <meshToonMaterial
+            gradientMap={threeStepGradientMap}
+            color="#734524"
+          />
         </mesh>
 
         {/* Swimming tail at the rear (-Z) */}
         <mesh position={[0, 0.12, -0.9]} rotation={[-0.2, 0, 0]}>
           <coneGeometry args={[0.2, 0.65, 16]} />
-          <meshToonMaterial color="#734524" />
+          <meshToonMaterial
+            gradientMap={threeStepGradientMap}
+            color="#734524"
+          />
         </mesh>
       </group>
 

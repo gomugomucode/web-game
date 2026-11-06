@@ -4,6 +4,7 @@ import React, { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { GAME_CONSTANTS } from './constants';
+import { threeStepGradientMap } from './toonGradient';
 
 interface Particle {
   x: number;
@@ -78,7 +79,10 @@ export function Environment() {
         position={[75, -0.25, 70]}
       >
         <planeGeometry args={[600, 600]} />
-        <meshToonMaterial color={GAME_CONSTANTS.GROUND_VALLEY_COLOR} />
+        <meshToonMaterial
+          gradientMap={threeStepGradientMap}
+          color={GAME_CONSTANTS.GROUND_VALLEY_COLOR}
+        />
       </mesh>
 
       {/* 5. Natural River Elements: Rocks and Scenery */}
@@ -120,7 +124,10 @@ function SceneryElements() {
           rotation={[0, rock.rot, 0]}
         >
           <dodecahedronGeometry args={[1, 0]} />
-          <meshToonMaterial color="#64748b" />
+          <meshToonMaterial
+            gradientMap={threeStepGradientMap}
+            color="#64748b"
+          />
         </mesh>
       ))}
     </group>

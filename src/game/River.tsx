@@ -1,11 +1,14 @@
 'use client';
 
 import React, { useMemo } from 'react';
+import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { Track } from './tracks/types';
 import { smoothCenterline, findNearestPointOnPolyline } from './math';
 import { GAME_CONSTANTS } from './constants';
 import { useGameStore } from './useGameStore';
+import { threeStepGradientMap } from './toonGradient';
+import { sharedWaterMaterial } from './WaterMaterial';
 
 interface RiverProps {
   track: Track;
@@ -39,10 +42,17 @@ export function River({ track }: RiverProps) {
     const rightUvs: number[] = [];
     const rightIndices: number[] = [];
 
+    let cumDist = 0;
     for (let i = 0; i < count; i++) {
       const curr = smoothed[i];
       const prev = smoothed[Math.max(0, i - 1)];
       const next = smoothed[Math.min(count - 1, i + 1)];
+
+      if (i > 0) {
+        const segDx = curr[0] - prev[0];
+        const segDz = curr[1] - prev[1];
+        cumDist += Math.sqrt(segDx * segDx + segDz * segDz);
+      }
 
       // Tangent vector along centerline
       let dx = next[0] - prev[0];
@@ -62,10 +72,12 @@ export function River({ track }: RiverProps) {
       const rightEdgeX = curr[0] - nx * halfWidth;
       const rightEdgeZ = curr[1] - nz * halfWidth;
 
+      // Metric UV coordinate along river length (1.0 V unit = 18m river width)
+      const vCoord = cumDist / (halfWidth * 2);
+
       // --- Water Ribbon ---
       waterPositions.push(leftEdgeX, GAME_CONSTANTS.WATER_SURFACE_Y, leftEdgeZ);
       waterPositions.push(rightEdgeX, GAME_CONSTANTS.WATER_SURFACE_Y, rightEdgeZ);
-      const vCoord = i / (count - 1);
       waterUvs.push(0, vCoord, 1, vCoord);
 
       // --- Left Bank (Waterline -> Crest -> Outer Top) ---
@@ -149,14 +161,16 @@ export function River({ track }: RiverProps) {
   const finishCp = track.checkpoints[finishCheckpointIndex];
   const finishRotY = checkpointRotations[finishCheckpointIndex];
 
+  // Animate water shader time uniform per frame (Milestone 6)
+  useFrame((_, delta) => {
+    const dt = Math.min(delta, GAME_CONSTANTS.MAX_DELTA_TIME);
+    sharedWaterMaterial.uniforms.uTime.value += dt;
+  });
+
   return (
     <group>
-      {/* 1. River Water Surface Ribbon */}
-      <mesh geometry={waterGeo} renderOrder={1}>
-        <meshToonMaterial
-          color={GAME_CONSTANTS.WATER_SURFACE_COLOR}
-        />
-      </mesh>
+      {/* 1. River Water Surface Ribbon (Animated Shader) */}
+      <mesh geometry={waterGeo} material={sharedWaterMaterial} renderOrder={1} />
 
       {/* Water river bed under the surface */}
       <mesh geometry={waterGeo} position={[0, -0.15, 0]}>
@@ -165,10 +179,16 @@ export function River({ track }: RiverProps) {
 
       {/* 2. Raised River Banks (Lush green anime grass + stone slopes) */}
       <mesh geometry={leftBankGeo}>
-        <meshToonMaterial color={GAME_CONSTANTS.BANK_TOP_COLOR} />
+        <meshToonMaterial
+          gradientMap={threeStepGradientMap}
+          color={GAME_CONSTANTS.BANK_TOP_COLOR}
+        />
       </mesh>
       <mesh geometry={rightBankGeo}>
-        <meshToonMaterial color={GAME_CONSTANTS.BANK_TOP_COLOR} />
+        <meshToonMaterial
+          gradientMap={threeStepGradientMap}
+          color={GAME_CONSTANTS.BANK_TOP_COLOR}
+        />
       </mesh>
 
       {/* 3. Start Gate Arch at track start position */}
@@ -212,17 +232,17 @@ function StartGate({ position }: { position: [number, number, number] }) {
       {/* Left post */}
       <mesh position={[-8.5, 2.5, 0]}>
         <cylinderGeometry args={[0.3, 0.35, 5, 8]} />
-        <meshToonMaterial color="#78350f" />
+        <meshToonMaterial gradientMap={threeStepGradientMap} color="#78350f" />
       </mesh>
       {/* Right post */}
       <mesh position={[8.5, 2.5, 0]}>
         <cylinderGeometry args={[0.3, 0.35, 5, 8]} />
-        <meshToonMaterial color="#78350f" />
+        <meshToonMaterial gradientMap={threeStepGradientMap} color="#78350f" />
       </mesh>
       {/* Crossbar */}
       <mesh position={[0, 4.8, 0]} rotation={[0, 0, Math.PI / 2]}>
         <cylinderGeometry args={[0.25, 0.25, 17.5, 8]} />
-        <meshToonMaterial color="#92400e" />
+        <meshToonMaterial gradientMap={threeStepGradientMap} color="#92400e" />
       </mesh>
 
       {/* Festive red lanterns */}
@@ -270,19 +290,19 @@ function CheckpointGate({
       {/* Left post on bank */}
       <mesh position={[-8.5, 2.5, 0]}>
         <cylinderGeometry args={[0.28, 0.32, 5, 8]} />
-        <meshToonMaterial color={postColor} />
+        <meshToonMaterial gradientMap={threeStepGradientMap} color={postColor} />
       </mesh>
 
       {/* Right post on bank */}
       <mesh position={[8.5, 2.5, 0]}>
         <cylinderGeometry args={[0.28, 0.32, 5, 8]} />
-        <meshToonMaterial color={postColor} />
+        <meshToonMaterial gradientMap={threeStepGradientMap} color={postColor} />
       </mesh>
 
       {/* Top Crossbar */}
       <mesh position={[0, 4.8, 0]} rotation={[0, 0, Math.PI / 2]}>
         <cylinderGeometry args={[0.22, 0.22, 17.5, 8]} />
-        <meshToonMaterial color={postColor} />
+        <meshToonMaterial gradientMap={threeStepGradientMap} color={postColor} />
       </mesh>
 
       {/* Floating Center Checkpoint Ring */}
@@ -336,17 +356,17 @@ function FinishGate({
       {/* Left post */}
       <mesh position={[-8.5, 2.5, 0]}>
         <cylinderGeometry args={[0.3, 0.35, 5, 8]} />
-        <meshToonMaterial color={finishPostColor} />
+        <meshToonMaterial gradientMap={threeStepGradientMap} color={finishPostColor} />
       </mesh>
       {/* Right post */}
       <mesh position={[8.5, 2.5, 0]}>
         <cylinderGeometry args={[0.3, 0.35, 5, 8]} />
-        <meshToonMaterial color={finishPostColor} />
+        <meshToonMaterial gradientMap={threeStepGradientMap} color={finishPostColor} />
       </mesh>
       {/* Crossbar */}
       <mesh position={[0, 4.8, 0]} rotation={[0, 0, Math.PI / 2]}>
         <cylinderGeometry args={[0.25, 0.25, 17.5, 8]} />
-        <meshToonMaterial color={finishPostColor} />
+        <meshToonMaterial gradientMap={threeStepGradientMap} color={finishPostColor} />
       </mesh>
 
       {/* Floating Finish Ring */}
