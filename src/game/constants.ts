@@ -53,6 +53,14 @@ export const GAME_CONSTANTS = {
   CURRENT_STREAK_SPEED: 9.0, // Visual flow speed of streak particles (m/s)
   CURRENT_TINT_COLOR: '#67e8f9', // Light cyan water tint along current polyline
   CURRENT_STREAK_COLOR: '#ffffff', // White foam streak particles
+  CURRENT_FADE_DISTANCE: 8.0, // Distance (m) over which current force ramps in and out
+
+  // Hazards (Milestone 7)
+  HAZARD_ROCK_RADIUS: 1.2, // Radius of hazard rocks (m)
+  HAZARD_SPEED_MULTIPLIER: 0.5, // Speed multiplier applied on hazard collision
+  HAZARD_COOLDOWN: 0.4, // Contact cooldown (seconds) to prevent multi-frame triggering
+  HAZARD_ROCK_COLOR: '#1e293b', // Dark obsidian stone color distinct from decorative rocks
+  HAZARD_RING_COLOR: '#f59e0b', // Warning amber marker ring around hazard rocks
 
   // Camera (Section 6.4 & Milestone 2)
   CAMERA_BEHIND_DISTANCE: 7.0, // Units behind the otter along heading

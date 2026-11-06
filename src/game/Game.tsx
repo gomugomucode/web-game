@@ -8,6 +8,7 @@ import { useKeyboardInput } from './input';
 import { Otter } from './Otter';
 import { River } from './River';
 import { Currents } from './Currents';
+import { Hazards } from './Hazards';
 import { Environment } from './Environment';
 import { CameraRig } from './CameraRig';
 import { river01 } from './tracks/river01';
@@ -123,6 +124,9 @@ export function Game() {
 
         {/* Milestone 5: River currents with lighter tinted ribbon strips and flow streaks */}
         <Currents track={river01} />
+
+        {/* Milestone 7: Obstacle rocks near currents requiring weaving navigation */}
+        <Hazards track={river01} />
 
         {/* Otter mesh, movement loop, and river bank boundary collision */}
         <Otter inputRef={inputRef} tunables={tunables} />

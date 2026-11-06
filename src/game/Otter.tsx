@@ -33,6 +33,7 @@ export function Otter({ inputRef, tunables }: OtterProps) {
   // Dash state timers
   const dashCooldownTimerRef = useRef(0);
   const dashBoostTimerRef = useRef(0);
+  const hazardCooldownTimerRef = useRef(0);
   const prevSpacePressedRef = useRef(false);
 
   // Cosmetic visual feedback refs
@@ -72,6 +73,7 @@ export function Otter({ inputRef, tunables }: OtterProps) {
       headingRef.current = river01.start.heading;
       dashCooldownTimerRef.current = 0;
       dashBoostTimerRef.current = 0;
+      hazardCooldownTimerRef.current = 0;
       prevSpacePressedRef.current = false;
       currentRollRef.current = 0;
       bobPhaseRef.current = 0;
@@ -139,12 +141,15 @@ export function Otter({ inputRef, tunables }: OtterProps) {
     // 2. Horizontal speed on X-Z plane
     const currentSpeed = Math.sqrt(v.x * v.x + v.z * v.z);
 
-    // 3. Update Dash Timers
+    // 3. Update Dash & Hazard Timers
     if (dashCooldownTimerRef.current > 0) {
       dashCooldownTimerRef.current = Math.max(0, dashCooldownTimerRef.current - dt);
     }
     if (dashBoostTimerRef.current > 0) {
       dashBoostTimerRef.current = Math.max(0, dashBoostTimerRef.current - dt);
+    }
+    if (hazardCooldownTimerRef.current > 0) {
+      hazardCooldownTimerRef.current = Math.max(0, hazardCooldownTimerRef.current - dt);
     }
 
     // 4. Steering (Section 6.2)
@@ -210,22 +215,40 @@ export function Otter({ inputRef, tunables }: OtterProps) {
     v.x = vForward * fwdX + vSide * rightX;
     v.z = vForward * fwdZ + vSide * rightZ;
 
-    // 9.5 River Currents Acceleration (Milestone 5, Section 6.3 & 9)
+    // 9.5 River Currents Acceleration (Milestone 5, Task A)
     let inAnyCurrent = false;
     if (phase === 'racing' || phase === 'finished') {
       const currentList = river01.currents;
       const strengthScale = tunables.currentStrength / GAME_CONSTANTS.CURRENT_STRENGTH;
       for (let i = 0; i < currentList.length; i++) {
         const cur = currentList[i];
-        const curRes = findNearestPointOnPolyline(pos.x, pos.z, cur.points);
+        const pts = cur.smoothedPoints ?? cur.points;
+        const curRes = findNearestPointOnPolyline(pos.x, pos.z, pts);
         const d = curRes.distance;
         if (d < cur.width) {
-          inAnyCurrent = true;
           const ratio = d / cur.width;
           const falloff = 1 - ratio * ratio;
-          const effAccel = (cur.strength * strengthScale) * falloff * dt;
-          v.x += curRes.tangentX * effAccel;
-          v.z += curRes.tangentZ * effAccel;
+
+          // Compute distance s along current polyline for 8m fade-in & fade-out
+          const cumDist = cur.cumDist;
+          let s = 0;
+          if (cumDist && cumDist.length > curRes.segmentIndex) {
+            const segStart = pts[curRes.segmentIndex];
+            const dxOnSeg = curRes.point[0] - segStart[0];
+            const dzOnSeg = curRes.point[1] - segStart[1];
+            s = cumDist[curRes.segmentIndex] + Math.hypot(dxOnSeg, dzOnSeg);
+          }
+          const totalLen = cur.totalLength ?? (cumDist ? cumDist[cumDist.length - 1] : 100);
+          const fadeStart = clamp(s / GAME_CONSTANTS.CURRENT_FADE_DISTANCE, 0, 1);
+          const fadeEnd = clamp((totalLen - s) / GAME_CONSTANTS.CURRENT_FADE_DISTANCE, 0, 1);
+          const lengthFade = Math.min(fadeStart, fadeEnd);
+
+          if (lengthFade > 0.01) {
+            inAnyCurrent = true;
+            const effAccel = (cur.strength * strengthScale) * falloff * lengthFade * dt;
+            v.x += curRes.tangentX * effAccel;
+            v.z += curRes.tangentZ * effAccel;
+          }
         }
       }
     }
@@ -253,6 +276,45 @@ export function Otter({ inputRef, tunables }: OtterProps) {
         // Multiply speed by 0.7 per Section 6.2
         v.x *= GAME_CONSTANTS.BOUNDARY_SPEED_MULTIPLIER;
         v.z *= GAME_CONSTANTS.BOUNDARY_SPEED_MULTIPLIER;
+      }
+    }
+
+    // 11.5 Hazard Rocks Collision (Milestone 7, Task B)
+    const hazards = river01.hazards;
+    const otterRad = GAME_CONSTANTS.OTTER_RADIUS;
+    for (let i = 0; i < hazards.length; i++) {
+      const rock = hazards[i];
+      const totalRad = rock.radius + otterRad;
+      const dx = pos.x - rock.pos[0];
+      const dz = pos.z - rock.pos[1];
+      const distSq = dx * dx + dz * dz;
+
+      if (distSq < totalRad * totalRad) {
+        const dist = Math.sqrt(distSq);
+        let nx = 0;
+        let nz = 1;
+        if (dist > 0.0001) {
+          nx = dx / dist;
+          nz = dz / dist;
+        }
+
+        // Push otter out along contact normal
+        pos.x = rock.pos[0] + nx * totalRad;
+        pos.z = rock.pos[1] + nz * totalRad;
+
+        // Remove inward velocity component
+        const normalVel = v.x * nx + v.z * nz;
+        if (normalVel < 0) {
+          v.x -= normalVel * nx;
+          v.z -= normalVel * nz;
+        }
+
+        // Multiply speed by 0.5 with 0.4s cooldown
+        if (hazardCooldownTimerRef.current <= 0) {
+          hazardCooldownTimerRef.current = GAME_CONSTANTS.HAZARD_COOLDOWN;
+          v.x *= GAME_CONSTANTS.HAZARD_SPEED_MULTIPLIER;
+          v.z *= GAME_CONSTANTS.HAZARD_SPEED_MULTIPLIER;
+        }
       }
     }
 

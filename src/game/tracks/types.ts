@@ -12,9 +12,18 @@ export interface Checkpoint {
 
 export interface Current {
   id: string;
-  points: Vec2[]; // polyline inside the river
+  points: Vec2[]; // raw control points
+  smoothedPoints?: Vec2[]; // precomputed shared Catmull-Rom polyline
+  cumDist?: number[]; // precomputed cumulative arc lengths
+  totalLength?: number;
   width: number; // influence radius
   strength: number; // acceleration, units per second squared
+}
+
+export interface Hazard {
+  id: string;
+  pos: Vec2;
+  radius: number;
 }
 
 export interface Track {
@@ -29,6 +38,7 @@ export interface Track {
   };
   checkpoints: Checkpoint[];
   currents: Current[];
+  hazards: Hazard[];
   laps: number;
 }
 

@@ -56,21 +56,19 @@ function createInitialStreaks(currentCount: number, widths: number[]): CurrentSt
 }
 
 export function Currents({ track }: CurrentsProps) {
-  // 1. Precompute smoothed ribbons and cumulative arc-lengths for each current
+  // 1. Use precomputed shared smoothed polyline and cumulative arc-lengths for each current (Task A)
   const processedCurrents = useMemo<ProcessedCurrent[]>(() => {
     return track.currents.map((cur) => {
-      const smoothed = smoothCenterline(cur.points, 12);
-      const cumDist: number[] = [0];
+      const smoothed = cur.smoothedPoints ?? smoothCenterline(cur.points, 12);
+      const cumDist = cur.cumDist ?? (() => {
+        const cd: number[] = [0];
+        for (let i = 0; i < smoothed.length - 1; i++) {
+          cd.push(cd[i] + Math.hypot(smoothed[i + 1][0] - smoothed[i][0], smoothed[i + 1][1] - smoothed[i][1]));
+        }
+        return cd;
+      })();
 
-      for (let i = 0; i < smoothed.length - 1; i++) {
-        const d = Math.hypot(
-          smoothed[i + 1][0] - smoothed[i][0],
-          smoothed[i + 1][1] - smoothed[i][1]
-        );
-        cumDist.push(cumDist[i] + d);
-      }
-
-      const totalLength = cumDist[cumDist.length - 1] || 1;
+      const totalLength = cur.totalLength ?? (cumDist[cumDist.length - 1] || 1);
 
       // Build quad ribbon geometry along current polyline
       const positions: number[] = [];
