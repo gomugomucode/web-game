@@ -13,12 +13,13 @@ export interface GameStoreState {
   nextCheckpoint: number;
   trackId: string;
   runId: number;
+  playerRank: number;
 
   // Actions
   startCountdown: () => void;
   startRace: () => void;
   hitCheckpoint: (index: number) => void;
-  finish: (time: number) => void;
+  finish: (time: number, rank?: number) => void;
   restart: () => void;
 }
 
@@ -59,6 +60,7 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
   nextCheckpoint: 0,
   trackId: 'river-01',
   runId: 0,
+  playerRank: 1,
 
   startCountdown: () =>
     set((state) => ({
@@ -67,6 +69,7 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
       finishTime: null,
       nextCheckpoint: 0,
       runId: state.runId + 1,
+      playerRank: 1,
     })),
 
   startRace: () =>
@@ -80,7 +83,7 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
       nextCheckpoint: index + 1,
     }),
 
-  finish: (time: number) => {
+  finish: (time: number, rank = 1) => {
     const state = get();
     const isNewBest = state.bestTime === null || time < state.bestTime;
     const finalBest = isNewBest ? time : state.bestTime;
@@ -93,6 +96,7 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
       phase: 'finished',
       finishTime: time,
       bestTime: finalBest,
+      playerRank: rank,
       nextCheckpoint: river01.checkpoints.length, // Dynamic checkpoints length
     });
   },
@@ -107,6 +111,7 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
       finishTime: null,
       nextCheckpoint: 0,
       runId: s.runId + 1,
+      playerRank: 1,
       bestTime: currentBest ?? state.bestTime,
     }));
   },

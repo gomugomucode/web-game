@@ -24,3 +24,4 @@ function createThreeStepGradientMap(): THREE.DataTexture {
 }
 
 export const threeStepGradientMap = createThreeStepGradientMap();
+

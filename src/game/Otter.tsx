@@ -337,7 +337,7 @@ export function Otter({ inputRef, tunables }: OtterProps) {
             const totalElapsed = gameState.raceStartTime
               ? finishTimestamp - gameState.raceStartTime
               : 0;
-            gameState.finish(totalElapsed);
+            gameState.finish(totalElapsed, otterTelemetry.playerRank);
           } else {
             // Milestone checkpoint passed
             gameState.hitCheckpoint(currentCpIndex);

@@ -80,6 +80,50 @@ export const GAME_CONSTANTS = {
   BOB_FREQUENCY: 7.0, // Frequency of swimming bob oscillation
   SQUASH_STRETCH_AMOUNT: 0.2, // Visual mesh scale deformation during dash
 
+  // Rivals (Milestone 8)
+  RIVAL_COUNT: 3,
+  RIVAL_SEPARATION_RADIUS: 1.0, // Soft visual separation radius (m) between racers
+  RIVAL_HAZARD_AVOID_RADIUS: 5.0, // Distance along track (m) to begin hazard rock avoidance
+  RIVAL_HAZARD_AVOID_PUSH: 1.8, // Lateral lane shift (m) to weave clear of hazard rocks
+  RIVAL_PROFILES: [
+    {
+      id: 'rival_pip',
+      name: 'Pip',
+      bodyColor: '#2563eb', // Sapphire ocean blue
+      outlineColor: '#1e3a8a',
+      snoutColor: '#93c5fd',
+      lane: -3.5, // Base lateral offset (m)
+      speedMult: 0.94, // 94% of player cruise speed (~10.4 m/s)
+      staggerZ: 0.0, // Start grid row offset (m)
+      waveFreq: 0.03,
+      waveAmp: 0.8,
+    },
+    {
+      id: 'rival_barnaby',
+      name: 'Barnaby',
+      bodyColor: '#059669', // Emerald forest green
+      outlineColor: '#064e3b',
+      snoutColor: '#a7f3d0',
+      lane: 3.2, // Base lateral offset (m)
+      speedMult: 0.98, // 98% of player cruise speed (~10.9 m/s)
+      staggerZ: -1.2, // Start grid row offset (m)
+      waveFreq: 0.025,
+      waveAmp: 1.0,
+    },
+    {
+      id: 'rival_luna',
+      name: 'Luna',
+      bodyColor: '#e11d48', // Crimson sunset rose
+      outlineColor: '#881337',
+      snoutColor: '#fecdd3',
+      lane: 0.8, // Base lateral offset (m)
+      speedMult: 1.01, // 101% of player cruise speed (~11.2 m/s)
+      staggerZ: -2.2, // Start grid row offset (m)
+      waveFreq: 0.035,
+      waveAmp: 0.9,
+    },
+  ] as const,
+
   // Otter Dimensions (Placeholder capsule)
   OTTER_RADIUS: 0.35, // Radius of capsule (meters)
   OTTER_LENGTH: 0.9, // Length of capsule cylinder portion (meters)

@@ -29,6 +29,7 @@ export function Hud({ tunables }: HudProps) {
   const nextCheckpoint = useGameStore((state) => state.nextCheckpoint);
   const finishTime = useGameStore((state) => state.finishTime);
   const bestTime = useGameStore((state) => state.bestTime);
+  const playerRank = useGameStore((state) => state.playerRank);
   const restart = useGameStore((state) => state.restart);
   const startCountdown = useGameStore((state) => state.startCountdown);
 
@@ -38,6 +39,7 @@ export function Hud({ tunables }: HudProps) {
   const cruiseRefTextRef = useRef<HTMLSpanElement>(null);
   const headingTextRef = useRef<HTMLSpanElement>(null);
   const checkpointTextRef = useRef<HTMLSpanElement>(null);
+  const positionTextRef = useRef<HTMLSpanElement>(null);
   const dashStatusRef = useRef<HTMLSpanElement>(null);
   const dashBarRef = useRef<HTMLDivElement>(null);
   const inCurrentBadgeRef = useRef<HTMLSpanElement>(null);
@@ -173,6 +175,21 @@ export function Hud({ tunables }: HudProps) {
           checkpointTextRef.current.textContent = `${gameState.nextCheckpoint} / 4`;
         }
 
+        if (positionTextRef.current) {
+          const rank = otterTelemetry.playerRank;
+          const ordinal = rank === 1 ? '1st' : rank === 2 ? '2nd' : rank === 3 ? '3rd' : '4th';
+          positionTextRef.current.textContent = `${ordinal} / 4`;
+          if (rank === 1) {
+            positionTextRef.current.className = 'text-2xl sm:text-3xl font-black font-mono text-amber-400';
+          } else if (rank === 2) {
+            positionTextRef.current.className = 'text-2xl sm:text-3xl font-black font-mono text-slate-200';
+          } else if (rank === 3) {
+            positionTextRef.current.className = 'text-2xl sm:text-3xl font-black font-mono text-amber-600';
+          } else {
+            positionTextRef.current.className = 'text-2xl sm:text-3xl font-black font-mono text-slate-400';
+          }
+        }
+
         if (dashStatusRef.current && dashBarRef.current) {
           if (otterTelemetry.isDashing) {
             dashStatusRef.current.textContent = 'BOOSTING!';
@@ -242,17 +259,33 @@ export function Hud({ tunables }: HudProps) {
           )}
         </div>
 
-        {/* Checkpoint Counter (Requirement 4) */}
-        <div className="bg-slate-900/85 backdrop-blur-md rounded-2xl px-5 py-3 border border-white/10 shadow-xl flex flex-col items-end">
-          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-            Checkpoints
-          </span>
-          <span
-            ref={checkpointTextRef}
-            className="text-2xl sm:text-3xl font-black font-mono text-sky-400"
-          >
-            {nextCheckpoint} / 4
-          </span>
+        {/* Right Header Stats: Live Position & Checkpoints */}
+        <div className="flex items-center gap-3">
+          {/* Live Position Indicator (Milestone 8) */}
+          <div className="bg-slate-900/85 backdrop-blur-md rounded-2xl px-5 py-3 border border-white/10 shadow-xl flex flex-col items-center">
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+              Position
+            </span>
+            <span
+              ref={positionTextRef}
+              className="text-2xl sm:text-3xl font-black font-mono text-amber-400"
+            >
+              1st / 4
+            </span>
+          </div>
+
+          {/* Checkpoint Counter (Requirement 4) */}
+          <div className="bg-slate-900/85 backdrop-blur-md rounded-2xl px-5 py-3 border border-white/10 shadow-xl flex flex-col items-end">
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+              Checkpoints
+            </span>
+            <span
+              ref={checkpointTextRef}
+              className="text-2xl sm:text-3xl font-black font-mono text-sky-400"
+            >
+              {nextCheckpoint} / 4
+            </span>
+          </div>
         </div>
       </header>
 
@@ -315,7 +348,7 @@ export function Hud({ tunables }: HudProps) {
         </div>
       )}
 
-      {/* Finish Results Panel (Requirement 5 & 6) */}
+      {/* Finish Results Panel (Requirement 5 & 6 & Milestone 8) */}
       {phase === 'finished' && finishTime !== null && (
         <div className="pointer-events-auto absolute inset-0 flex items-center justify-center bg-black/50 backdrop-blur-sm">
           <div className="bg-slate-900/95 border-2 border-emerald-500/50 rounded-3xl p-8 max-w-md w-full shadow-[0_0_50px_rgba(16,185,129,0.3)] text-center flex flex-col items-center gap-5 animate-in fade-in zoom-in-95 duration-200">
@@ -324,13 +357,35 @@ export function Hud({ tunables }: HudProps) {
               <h2 className="text-2xl font-black text-white tracking-wide">RACE FINISHED!</h2>
             </div>
 
+            {/* Position Award Banner */}
+            <div
+              className={`px-4 py-1.5 font-black text-xs uppercase tracking-widest rounded-full shadow-lg ${
+                playerRank === 1
+                  ? 'bg-gradient-to-r from-amber-400 to-yellow-300 text-slate-950 animate-bounce'
+                  : 'bg-slate-800 text-sky-300 border border-white/10'
+              }`}
+            >
+              {playerRank === 1
+                ? '★ 1ST PLACE VICTORY! ★'
+                : `FINISHED ${playerRank === 2 ? '2ND' : playerRank === 3 ? '3RD' : '4TH'} OF 4`}
+            </div>
+
             {isNewBest && (
-              <div className="px-4 py-1.5 bg-gradient-to-r from-amber-500 to-yellow-400 text-slate-950 font-black text-xs uppercase tracking-widest rounded-full shadow-lg animate-bounce">
+              <div className="px-4 py-1.5 bg-gradient-to-r from-emerald-500 to-teal-400 text-slate-950 font-black text-xs uppercase tracking-widest rounded-full shadow-lg">
                 ★ NEW BEST TIME! ★
               </div>
             )}
 
             <div className="w-full bg-slate-800/80 rounded-2xl p-4 border border-white/10 space-y-3">
+              <div className="flex justify-between items-baseline">
+                <span className="text-xs uppercase font-bold text-slate-400 tracking-wider">
+                  Final Position
+                </span>
+                <span className="font-mono text-3xl font-black text-amber-400">
+                  {playerRank === 1 ? '1st' : playerRank === 2 ? '2nd' : playerRank === 3 ? '3rd' : '4th'} / 4
+                </span>
+              </div>
+              <div className="h-px bg-slate-700/60 w-full" />
               <div className="flex justify-between items-baseline">
                 <span className="text-xs uppercase font-bold text-slate-400 tracking-wider">
                   Total Time

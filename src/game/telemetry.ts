@@ -11,6 +11,10 @@ export interface OtterTelemetry {
   isDashing: boolean;
   position: [number, number, number];
   inCurrent: boolean;
+  playerRank: number;
+  totalRacers: number;
+  drawCalls: number;
+  fps: number;
 }
 
 export const otterTelemetry: OtterTelemetry = {
@@ -20,5 +24,9 @@ export const otterTelemetry: OtterTelemetry = {
   isDashing: false,
   position: [0, 0, 0],
   inCurrent: false,
+  playerRank: 1,
+  totalRacers: 4,
+  drawCalls: 0,
+  fps: 60,
 };
 

@@ -6,6 +6,7 @@ import { Leva, useControls } from 'leva';
 import { GAME_CONSTANTS, DEFAULT_MOVEMENT_TUNABLES, MovementTunables } from './constants';
 import { useKeyboardInput } from './input';
 import { Otter } from './Otter';
+import { Rivals } from './Rivals';
 import { River } from './River';
 import { Currents } from './Currents';
 import { Hazards } from './Hazards';
@@ -130,6 +131,9 @@ export function Game() {
 
         {/* Otter mesh, movement loop, and river bank boundary collision */}
         <Otter inputRef={inputRef} tunables={tunables} />
+
+        {/* Milestone 8: 3 Rival otters racing along river01 with path following and hazard avoidance */}
+        <Rivals />
 
         {/* Follow Camera with 1 - exp(-6 * dt) smoothing and dash FOV effect */}
         <CameraRig />
