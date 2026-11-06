@@ -2,7 +2,7 @@
 
 > **Developer Context**: Solo project built with Next.js 16 (App Router), React 19, Three.js, `@react-three/fiber` v9, `@react-three/drei`, Tailwind CSS v4, Zustand, and Leva.
 > **Repository**: [https://github.com/gomugomucode/web-game.git](https://github.com/gomugomucode/web-game.git) (Branch: `main`)
-> **Current Version**: Milestones 1 through 9 Complete.
+> **Current Version**: Milestones 1 through 10 Complete.
 
 ---
 
@@ -19,7 +19,8 @@
 * [x] **Milestone 6**: Visual Look (Shared 3-step toon gradient map with NearestFilter, animated water shader with downstream ripples, foam streamlines, shoreline fringes, toon specular glint, and distance fog).
 * [x] **Milestone 7**: Hazards (Obstacle rocks near currents requiring slalom weaving, 0.5x speed penalty, 0.4s cooldown, dark obsidian stone with amber warning rings).
 * [x] **Milestone 8**: Rival Otters (3 simplified AI rivals with individual colors and lanes, target speeds 92%-102% of cruise, hazard rock avoidance, current riding, soft separation, live HUD position indicator "X / 4", and final race position results).
-* [x] **Milestone 9**: Performance & Measurement (Real-time renderer dev overlay toggled via <kbd>F3</kbd> showing `gl.info.render.calls`, `gl.info.render.triangles`, and 0.5s smoothed FPS with zero React tree re-renders; draw calls reduced from 67 down to 40 at ready screen, 41 mid-race, and 44 during dash—all safely below the 50 budget; InstancedMesh for hazards and scenery rocks, merged gate geometries per material, merged current ribbons, merged river banks, and eliminated occluded subsurface riverbed).
+* [x] **Milestone 9**: Performance & Measurement (Real-time renderer dev overlay toggled via <kbd>F3</kbd> showing `gl.info.render.calls`, `gl.info.render.triangles`, and 0.5s smoothed FPS with zero React tree re-renders; draw calls reduced from 67 down to 40 at ready screen, 41 mid-race, and 44 during dash—all safely below the 50 budget).
+* [x] **Milestone 10**: Minimal Hub Slice & Dialogue System (Game modes: `hub` and `race` with clean state isolation; 60m calm pond hub scene with animated shader water, 3 merged wooden docks, instanced rocks, and marsh reeds; shared `CollisionBoundary` interface for both river and hub circular boundaries/obstacles; NPC Barnaby on the pier with floating animated quest marker, 4m interact prompt, data-driven 6-line dialogue, keyboard/mouse choice navigation, seamless transition to race ready screen, and Return to Hub button on finish panel; draw calls measured at 21 in hub, 21 during dialogue, 41 in race—all well below 80).
 * [x] **Vision Aesthetics**: Genshin-inspired river valley with warm directional sunlight, atmospheric sky fog, valley ground floor, low-poly rocks, floating leaves, start/finish gates, water wake, and anime speed streaks.
 
 ---
@@ -146,6 +147,36 @@
   * **During Dash**: **44 draw calls** (was 67), 28,292 triangles, 149+ FPS.
   * All states well under the strict target of **under 50 draw calls**.
 
+### 4.7 Minimal Hub Slice & Dialogue System (Milestone 10)
+* **Game Modes (`useGameStore.ts`)**:
+  * Dual modes: `'hub'` and `'race'`. Game launches directly into `'hub'`.
+  * Complete isolation: countdowns, timers, checkpoints, rivals, currents, hazards, and results panel are inactive in the hub and untouched in the race.
+* **Hub Scene (`HubScene.tsx`)**:
+  * 60m wide calm pond ($r = 30\text{ m}$) rendered with `sharedWaterMaterial` (animated toon water with foam and ripples).
+  * Shoreline ring with toon green grass.
+  * 3 wooden docks (North Pier, East Fishing Dock, West Mooring) with pilings merged into a single draw call.
+  * 6 scenery rocks instanced via `InstancedMesh`.
+  * Clustered marsh reeds merged into a single geometry.
+  * NPC Barnaby on the North Pier with a floating animated quest marker bobbing and spinning.
+* **Refactored Boundary Collision (`boundaries.ts`)**:
+  * Common `CollisionBoundary` interface with `resolveCollision(pos, v)`. Zero heap allocations during `useFrame`.
+  * `RiverBoundary`: distance from river centerline.
+  * `HubBoundary`: outer circular pond perimeter ($r = 30\text{ m}$) plus 4 circular obstacles (pier pilings, boulder shoal, reed island, lily rock cluster).
+* **Data-Driven Dialogue (`dialogue/hub.ts`, `DialogueOverlay.tsx`)**:
+  * 6-line conversation in which mentor Barnaby introduces the player to river racing.
+  * Dual choice branches: "Race now!" and "Not yet, let me swim around first."
+  * Keyboard navigation (<kbd>E</kbd>, <kbd>Space</kbd>, <kbd>Enter</kbd>, <kbd>1</kbd>, <kbd>2</kbd>, arrow keys) and mouse click support.
+  * Player movement is locked during dialogue. Overlay is rendered outside Canvas, causing **zero Canvas re-renders**.
+* **Transitions**:
+  * Choosing "Race now!" switches to race mode, resets otter to start line $[0, 2]$, and presents the race ready screen.
+  * Results panel features a "Return to Hub" button that transitions back to hub mode at spawn point $[0, -12]$.
+  * <kbd>R</kbd> key in hub resets the otter to hub spawn $[0, -12]$; in race, it restarts the race countdown.
+* **Performance Metrics (Measured via F3 Overlay)**:
+  * **Hub State**: **21 draw calls**, 7,318 triangles, 180 FPS.
+  * **Dialogue State**: **21 draw calls**, 7,318 triangles, 172 FPS.
+  * **Race State**: **41 draw calls**, 28,256 triangles, 180 FPS.
+  * All states well below the **80 draw-call budget**.
+
 ---
 
 ## 5. File Structure Reference
@@ -157,40 +188,33 @@ src/
 │   ├── layout.tsx          # Root layout with Geist font and title metadata
 │   └── page.tsx            # Next.js dynamic client import for <Game /> (ssr: false)
 ├── game/
+│   ├── boundaries.ts       # Shared CollisionBoundary interface (RiverBoundary, HubBoundary)
 │   ├── CameraRig.tsx       # Follow camera with smoothing, dynamic FOV, anti-clipping
 │   ├── constants.ts        # Single source of truth for all tunable constants
 │   ├── Currents.tsx        # Merged current strips and instanced flow streaks
 │   ├── DevPerformanceMonitor.tsx # In-canvas Three.js renderer stats collector
 │   ├── Environment.tsx     # Genshin-style valley, sky, fog, sunlight, instanced rocks, floating petals
-│   ├── Game.tsx            # R3F Canvas mount, lighting, Leva panel, composition
+│   ├── Game.tsx            # R3F Canvas mount, mode routing, lighting, Leva panel, composition
 │   ├── Hazards.tsx         # Instanced hazard rocks, surface warning rings, and beacons
+│   ├── HubScene.tsx        # 60m pond, merged docks, reeds, instanced rocks, NPC Barnaby
 │   ├── input.ts            # Window keyboard listener ref with preventDefault & blur reset
 │   ├── math.ts             # findNearestPointOnPolyline, Catmull-Rom smoothCenterline
-│   ├── Otter.tsx           # Otter mesh, arcade physics loop, bank collision, visual feedback
+│   ├── Otter.tsx           # Otter mesh, arcade physics loop, boundary collision, visual feedback
 │   ├── River.tsx           # Procedural river ribbon, merged banks, merged start/checkpoint/finish gates
 │   ├── Rivals.tsx          # 3 simplified AI rivals with lane following and soft separation
 │   ├── sharedRefs.ts       # Shared physics refs (position, heading, isDashing, hasReset)
 │   ├── telemetry.ts        # Decoupled high-frequency HUD telemetry store (speed, calls, triangles, fps)
 │   ├── toonGradient.ts     # Shared 3-step DataTexture toon gradient map
-│   ├── useGameStore.ts     # Zustand store for race phases, countdown, timer, and checkpoints
+│   ├── useGameStore.ts     # Zustand store for mode, race phases, dialogue, and checkpoints
 │   ├── WaterMaterial.ts    # Custom animated water shader material with toon specular and foam
+│   ├── dialogue/
+│   │   └── hub.ts          # Data-driven conversation lines and choices with mentor Barnaby
 │   └── tracks/
 │       ├── river01.ts      # "Calm Bend" track data (centerline, width, start, checkpoints, currents, hazards)
 │       └── types.ts        # Track, Checkpoint, Current, Hazard, and Vec2 TypeScript interfaces
 └── ui/
+    ├── DialogueOverlay.tsx # DOM overlay for dialogue text, choices, and interact prompt
     └── Hud.tsx             # Decoupled rAF HUD overlay: speed, timer, checkpoints, rank, and F3 dev monitor
-```
-│   ├── math.ts             # findNearestPointOnPolyline, Catmull-Rom smoothCenterline
-│   ├── Otter.tsx           # Otter mesh, arcade physics loop, bank collision, visual feedback
-│   ├── River.tsx           # Procedural river ribbon, 3D raised grass banks, start/finish gates
-│   ├── sharedRefs.ts       # Shared physics refs (position, heading, isDashing, hasReset)
-│   ├── telemetry.ts        # Decoupled high-frequency HUD telemetry store
-│   ├── useGameStore.ts     # Zustand store skeleton (prepared for race flow)
-│   └── tracks/
-│       ├── river01.ts      # "Calm Bend" track data (centerline, width, start, checkpoints)
-│       └── types.ts        # Track, Checkpoint, Current, and Vec2 TypeScript interfaces
-└── ui/
-    └── Milestone1Hud.tsx   # High-performance rAF telemetry HUD overlay
 ```
 
 ---
