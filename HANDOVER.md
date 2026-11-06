@@ -15,10 +15,10 @@
 * [x] **Milestone 2**: Third-person follow camera with $1 - e^{-6 \cdot dt}$ smoothing, dynamic dash FOV widening (+10°), anti-water clipping.
 * [x] **Milestone 3**: Data-driven track (`river01`), procedural river ribbon, 3D raised grassy banks, and boundary collision slide system.
 * [x] **Milestone 4**: Complete Race Flow (Countdown overlay, 4 ordered Checkpoints with active highlights, `mm:ss.mmm` decoupled Timer, Finish Results Panel, `localStorage` Best Time persistence, input locking, and <kbd>R</kbd> restart).
+* [x] **Milestone 5**: Currents (Acceleration along smoothed polyline with 8m smooth fade-in/out, visible flow streaks, tinted water zones).
+* [x] **Milestone 6**: Visual Look (Shared 3-step toon gradient map with NearestFilter, animated water shader with downstream ripples, foam streamlines, shoreline fringes, toon specular glint, and distance fog).
+* [x] **Milestone 7**: Hazards (Obstacle rocks near currents requiring slalom weaving, 0.5x speed penalty, 0.4s cooldown, dark obsidian stone with amber warning rings).
 * [x] **Vision Aesthetics**: Genshin-inspired river valley with warm directional sunlight, atmospheric sky fog, valley ground floor, low-poly rocks, floating leaves, start/finish gates, water wake, and anime speed streaks.
-
-### Next Milestone
-* [ ] **Milestone 5**: Currents (Signature mechanic: acceleration along polyline, visible flow streaks, tinted water zones).
 
 ---
 
