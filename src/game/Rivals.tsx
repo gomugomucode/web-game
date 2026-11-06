@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useMemo, useRef } from 'react';
-import { useFrame, useThree } from '@react-three/fiber';
+import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { GAME_CONSTANTS } from './constants';
 import { river01, river01SmoothedCenterline } from './tracks/river01';
@@ -143,7 +143,6 @@ interface RivalState {
 }
 
 export function Rivals() {
-  const { gl } = useThree();
   const lastRunIdRef = useRef(useGameStore.getState().runId);
 
   // References to rival groups for direct matrix/transform updates
@@ -188,13 +187,8 @@ export function Rivals() {
     })
   );
 
-  useFrame((state, delta) => {
-    // 1. Monitor draw calls and FPS for telemetry report (Section 3)
-    otterTelemetry.drawCalls = gl.info.render.calls;
+  useFrame((_, delta) => {
     const dt = Math.min(delta, GAME_CONSTANTS.MAX_DELTA_TIME);
-    if (dt > 0) {
-      otterTelemetry.fps = Math.round(1 / dt);
-    }
     if (dt <= 0) return;
 
     const gameState = useGameStore.getState();

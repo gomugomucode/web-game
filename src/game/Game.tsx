@@ -8,6 +8,7 @@ import { useKeyboardInput } from './input';
 import { Otter } from './Otter';
 import { Rivals } from './Rivals';
 import { River } from './River';
+import { DevPerformanceMonitor } from './DevPerformanceMonitor';
 import { Currents } from './Currents';
 import { Hazards } from './Hazards';
 import { Environment } from './Environment';
@@ -134,6 +135,9 @@ export function Game() {
 
         {/* Milestone 8: 3 Rival otters racing along river01 with path following and hazard avoidance */}
         <Rivals />
+
+        {/* Milestone 9: Real-time renderer performance monitor (gl.info.render) */}
+        <DevPerformanceMonitor />
 
         {/* Follow Camera with 1 - exp(-6 * dt) smoothing and dash FOV effect */}
         <CameraRig />

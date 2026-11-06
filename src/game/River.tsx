@@ -3,6 +3,7 @@
 import React, { useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { Track } from './tracks/types';
 import { smoothCenterline, findNearestPointOnPolyline } from './math';
 import { GAME_CONSTANTS } from './constants';
@@ -20,7 +21,7 @@ export function River({ track }: RiverProps) {
   const phase = useGameStore((state) => state.phase);
 
   // Pre-calculate smoothed spline centerline points and meshes (Step 0)
-  const { waterGeo, leftBankGeo, rightBankGeo } = useMemo(() => {
+  const { waterGeo, banksGeo } = useMemo(() => {
     const smoothed = track.smoothedCenterline ?? smoothCenterline(track.centerline, 14);
     const count = smoothed.length;
     const halfWidth = track.halfWidth;
@@ -145,7 +146,11 @@ export function River({ track }: RiverProps) {
     rGeo.setIndex(rightIndices);
     rGeo.computeVertexNormals();
 
-    return { waterGeo: wGeo, leftBankGeo: lGeo, rightBankGeo: rGeo };
+    const banksGeo = mergeGeometries([lGeo, rGeo], false);
+    lGeo.dispose();
+    rGeo.dispose();
+
+    return { waterGeo: wGeo, banksGeo };
   }, [track]);
 
   // Compute exact yaw rotation angles for each checkpoint so arches face river flow
@@ -172,19 +177,8 @@ export function River({ track }: RiverProps) {
       {/* 1. River Water Surface Ribbon (Animated Shader) */}
       <mesh geometry={waterGeo} material={sharedWaterMaterial} renderOrder={1} />
 
-      {/* Water river bed under the surface */}
-      <mesh geometry={waterGeo} position={[0, -0.15, 0]}>
-        <meshBasicMaterial color={GAME_CONSTANTS.WATER_COLOR} />
-      </mesh>
-
-      {/* 2. Raised River Banks (Lush green anime grass + stone slopes) */}
-      <mesh geometry={leftBankGeo}>
-        <meshToonMaterial
-          gradientMap={threeStepGradientMap}
-          color={GAME_CONSTANTS.BANK_TOP_COLOR}
-        />
-      </mesh>
-      <mesh geometry={rightBankGeo}>
+      {/* 2. Raised River Banks (Merged left and right banks) */}
+      <mesh geometry={banksGeo}>
         <meshToonMaterial
           gradientMap={threeStepGradientMap}
           color={GAME_CONSTANTS.BANK_TOP_COLOR}
@@ -223,41 +217,113 @@ export function River({ track }: RiverProps) {
   );
 }
 
+// Pre-merged static gate geometries to minimize draw calls (Milestone 9)
+const startGateFrameGeo = (() => {
+  const lp = new THREE.CylinderGeometry(0.3, 0.35, 5, 8);
+  lp.translate(-8.5, 2.5, 0);
+  const rp = new THREE.CylinderGeometry(0.3, 0.35, 5, 8);
+  rp.translate(8.5, 2.5, 0);
+  const cb = new THREE.CylinderGeometry(0.25, 0.25, 17.5, 8);
+  cb.rotateZ(Math.PI / 2);
+  cb.translate(0, 4.8, 0);
+  const merged = mergeGeometries([lp, rp, cb], false);
+  lp.dispose();
+  rp.dispose();
+  cb.dispose();
+  return merged;
+})();
+
+const startGateLanternsGeo = (() => {
+  const ls = new THREE.SphereGeometry(0.35, 12, 12);
+  ls.translate(-7.5, 3.8, 0);
+  const rs = new THREE.SphereGeometry(0.35, 12, 12);
+  rs.translate(7.5, 3.8, 0);
+  const merged = mergeGeometries([ls, rs], false);
+  ls.dispose();
+  rs.dispose();
+  return merged;
+})();
+
+const startBannerGeo = new THREE.PlaneGeometry(5, 1);
+
+const checkpointGateFrameGeo = (() => {
+  const lp = new THREE.CylinderGeometry(0.28, 0.32, 5, 8);
+  lp.translate(-8.5, 2.5, 0);
+  const rp = new THREE.CylinderGeometry(0.28, 0.32, 5, 8);
+  rp.translate(8.5, 2.5, 0);
+  const cb = new THREE.CylinderGeometry(0.22, 0.22, 17.5, 8);
+  cb.rotateZ(Math.PI / 2);
+  cb.translate(0, 4.8, 0);
+  const merged = mergeGeometries([lp, rp, cb], false);
+  lp.dispose();
+  rp.dispose();
+  cb.dispose();
+  return merged;
+})();
+
+const checkpointDotsGeo = (() => {
+  const ls = new THREE.SphereGeometry(0.3, 12, 12);
+  ls.translate(-7.5, 3.8, 0);
+  const rs = new THREE.SphereGeometry(0.3, 12, 12);
+  rs.translate(7.5, 3.8, 0);
+  const merged = mergeGeometries([ls, rs], false);
+  ls.dispose();
+  rs.dispose();
+  return merged;
+})();
+
+const checkpointRingGeoNext = new THREE.TorusGeometry(3.2, 0.22, 12, 32);
+const checkpointRingGeoNormal = new THREE.TorusGeometry(3.2, 0.14, 12, 32);
+const checkpointBannerGeo = new THREE.PlaneGeometry(4.2, 0.9);
+
+const finishGateFrameGeo = (() => {
+  const lp = new THREE.CylinderGeometry(0.3, 0.35, 5, 8);
+  lp.translate(-8.5, 2.5, 0);
+  const rp = new THREE.CylinderGeometry(0.3, 0.35, 5, 8);
+  rp.translate(8.5, 2.5, 0);
+  const cb = new THREE.CylinderGeometry(0.25, 0.25, 17.5, 8);
+  cb.rotateZ(Math.PI / 2);
+  cb.translate(0, 4.8, 0);
+  const merged = mergeGeometries([lp, rp, cb], false);
+  lp.dispose();
+  rp.dispose();
+  cb.dispose();
+  return merged;
+})();
+
+const finishLanternsGeo = (() => {
+  const ls = new THREE.SphereGeometry(0.35, 12, 12);
+  ls.translate(-7.5, 3.8, 0);
+  const rs = new THREE.SphereGeometry(0.35, 12, 12);
+  rs.translate(7.5, 3.8, 0);
+  const merged = mergeGeometries([ls, rs], false);
+  ls.dispose();
+  rs.dispose();
+  return merged;
+})();
+
+const finishRingGeoNext = new THREE.TorusGeometry(3.4, 0.25, 12, 32);
+const finishRingGeoNormal = new THREE.TorusGeometry(3.4, 0.16, 12, 32);
+const finishBannerGeo = new THREE.PlaneGeometry(6.5, 1.1);
+
 /**
  * Rustic wooden Start Gate
  */
 function StartGate({ position }: { position: [number, number, number] }) {
   return (
     <group position={position}>
-      {/* Left post */}
-      <mesh position={[-8.5, 2.5, 0]}>
-        <cylinderGeometry args={[0.3, 0.35, 5, 8]} />
+      {/* Merged wooden arch frame (posts + crossbar) */}
+      <mesh geometry={startGateFrameGeo}>
         <meshToonMaterial gradientMap={threeStepGradientMap} color="#78350f" />
-      </mesh>
-      {/* Right post */}
-      <mesh position={[8.5, 2.5, 0]}>
-        <cylinderGeometry args={[0.3, 0.35, 5, 8]} />
-        <meshToonMaterial gradientMap={threeStepGradientMap} color="#78350f" />
-      </mesh>
-      {/* Crossbar */}
-      <mesh position={[0, 4.8, 0]} rotation={[0, 0, Math.PI / 2]}>
-        <cylinderGeometry args={[0.25, 0.25, 17.5, 8]} />
-        <meshToonMaterial gradientMap={threeStepGradientMap} color="#92400e" />
       </mesh>
 
-      {/* Festive red lanterns */}
-      <mesh position={[-7.5, 3.8, 0]}>
-        <sphereGeometry args={[0.35, 12, 12]} />
-        <meshBasicMaterial color="#ef4444" />
-      </mesh>
-      <mesh position={[7.5, 3.8, 0]}>
-        <sphereGeometry args={[0.35, 12, 12]} />
+      {/* Merged festive red lanterns */}
+      <mesh geometry={startGateLanternsGeo}>
         <meshBasicMaterial color="#ef4444" />
       </mesh>
 
       {/* Start Banner */}
-      <mesh position={[0, 4.2, 0]}>
-        <planeGeometry args={[5, 1]} />
+      <mesh position={[0, 4.2, 0]} geometry={startBannerGeo}>
         <meshBasicMaterial color="#f59e0b" side={THREE.DoubleSide} />
       </mesh>
     </group>
@@ -287,48 +353,26 @@ function CheckpointGate({
 
   return (
     <group position={position} rotation={[0, rotationY, 0]}>
-      {/* Left post on bank */}
-      <mesh position={[-8.5, 2.5, 0]}>
-        <cylinderGeometry args={[0.28, 0.32, 5, 8]} />
-        <meshToonMaterial gradientMap={threeStepGradientMap} color={postColor} />
-      </mesh>
-
-      {/* Right post on bank */}
-      <mesh position={[8.5, 2.5, 0]}>
-        <cylinderGeometry args={[0.28, 0.32, 5, 8]} />
-        <meshToonMaterial gradientMap={threeStepGradientMap} color={postColor} />
-      </mesh>
-
-      {/* Top Crossbar */}
-      <mesh position={[0, 4.8, 0]} rotation={[0, 0, Math.PI / 2]}>
-        <cylinderGeometry args={[0.22, 0.22, 17.5, 8]} />
+      {/* Merged arch frame (posts + crossbar) */}
+      <mesh geometry={checkpointGateFrameGeo}>
         <meshToonMaterial gradientMap={threeStepGradientMap} color={postColor} />
       </mesh>
 
       {/* Floating Center Checkpoint Ring */}
-      <mesh position={[0, 2.5, 0]}>
-        <torusGeometry args={[3.2, isNext ? 0.22 : 0.14, 12, 32]} />
+      <mesh position={[0, 2.5, 0]} geometry={isNext ? checkpointRingGeoNext : checkpointRingGeoNormal}>
         <meshBasicMaterial color={ringColor} transparent opacity={isNext ? 0.95 : 0.6} />
       </mesh>
 
       {/* Floating Checkpoint Number Banner */}
-      <mesh position={[0, 4.2, 0]}>
-        <planeGeometry args={[4.2, 0.9]} />
+      <mesh position={[0, 4.2, 0]} geometry={checkpointBannerGeo}>
         <meshBasicMaterial color={bannerColor} side={THREE.DoubleSide} />
       </mesh>
 
-      {/* Glow marker dots on the posts when next */}
+      {/* Glow marker dots on the posts when next (merged 2 dots) */}
       {isNext && (
-        <>
-          <mesh position={[-7.5, 3.8, 0]}>
-            <sphereGeometry args={[0.3, 12, 12]} />
-            <meshBasicMaterial color="#38bdf8" />
-          </mesh>
-          <mesh position={[7.5, 3.8, 0]}>
-            <sphereGeometry args={[0.3, 12, 12]} />
-            <meshBasicMaterial color="#38bdf8" />
-          </mesh>
-        </>
+        <mesh geometry={checkpointDotsGeo}>
+          <meshBasicMaterial color="#38bdf8" />
+        </mesh>
       )}
     </group>
   );
@@ -353,25 +397,13 @@ function FinishGate({
 
   return (
     <group position={position} rotation={[0, rotationY, 0]}>
-      {/* Left post */}
-      <mesh position={[-8.5, 2.5, 0]}>
-        <cylinderGeometry args={[0.3, 0.35, 5, 8]} />
-        <meshToonMaterial gradientMap={threeStepGradientMap} color={finishPostColor} />
-      </mesh>
-      {/* Right post */}
-      <mesh position={[8.5, 2.5, 0]}>
-        <cylinderGeometry args={[0.3, 0.35, 5, 8]} />
-        <meshToonMaterial gradientMap={threeStepGradientMap} color={finishPostColor} />
-      </mesh>
-      {/* Crossbar */}
-      <mesh position={[0, 4.8, 0]} rotation={[0, 0, Math.PI / 2]}>
-        <cylinderGeometry args={[0.25, 0.25, 17.5, 8]} />
+      {/* Merged arch frame (posts + crossbar) */}
+      <mesh geometry={finishGateFrameGeo}>
         <meshToonMaterial gradientMap={threeStepGradientMap} color={finishPostColor} />
       </mesh>
 
       {/* Floating Finish Ring */}
-      <mesh position={[0, 2.5, 0]}>
-        <torusGeometry args={[3.4, isNext ? 0.25 : 0.16, 12, 32]} />
+      <mesh position={[0, 2.5, 0]} geometry={isNext ? finishRingGeoNext : finishRingGeoNormal}>
         <meshBasicMaterial
           color={isNext ? '#fbbf24' : '#10b981'}
           transparent
@@ -380,18 +412,12 @@ function FinishGate({
       </mesh>
 
       {/* Checkered style finish banner */}
-      <mesh position={[0, 4.2, 0]}>
-        <planeGeometry args={[6.5, 1.1]} />
+      <mesh position={[0, 4.2, 0]} geometry={finishBannerGeo}>
         <meshBasicMaterial color={finishBannerColor} side={THREE.DoubleSide} />
       </mesh>
 
-      {/* Finish Lanterns */}
-      <mesh position={[-7.5, 3.8, 0]}>
-        <sphereGeometry args={[0.35, 12, 12]} />
-        <meshBasicMaterial color={isNext ? '#fbbf24' : '#10b981'} />
-      </mesh>
-      <mesh position={[7.5, 3.8, 0]}>
-        <sphereGeometry args={[0.35, 12, 12]} />
+      {/* Merged Finish Lanterns */}
+      <mesh geometry={finishLanternsGeo}>
         <meshBasicMaterial color={isNext ? '#fbbf24' : '#10b981'} />
       </mesh>
     </group>

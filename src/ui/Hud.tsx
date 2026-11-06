@@ -44,6 +44,13 @@ export function Hud({ tunables }: HudProps) {
   const dashBarRef = useRef<HTMLDivElement>(null);
   const inCurrentBadgeRef = useRef<HTMLSpanElement>(null);
 
+  // Dev overlay DOM refs (Milestone 9: F3 Toggle)
+  const devOverlayRef = useRef<HTMLDivElement>(null);
+  const devFpsRef = useRef<HTMLSpanElement>(null);
+  const devCallsRef = useRef<HTMLSpanElement>(null);
+  const devTrianglesRef = useRef<HTMLSpanElement>(null);
+  const devVisibleRef = useRef<boolean>(false);
+
   // Countdown overlay DOM refs
   const countdownOverlayRef = useRef<HTMLDivElement>(null);
   const countdownTextRef = useRef<HTMLSpanElement>(null);
@@ -62,6 +69,12 @@ export function Hud({ tunables }: HudProps) {
 
       if (e.code === 'KeyR' || e.key.toLowerCase() === 'r') {
         useGameStore.getState().restart();
+      } else if (e.code === 'F3' || e.key === 'F3') {
+        e.preventDefault();
+        devVisibleRef.current = !devVisibleRef.current;
+        if (devOverlayRef.current) {
+          devOverlayRef.current.style.display = devVisibleRef.current ? 'block' : 'none';
+        }
       } else if (
         (e.code === 'Enter' || e.code === 'NumpadEnter' || e.code === 'Space') &&
         useGameStore.getState().phase === 'idle'
@@ -212,6 +225,13 @@ export function Hud({ tunables }: HudProps) {
             dashBarRef.current.className = 'h-full bg-emerald-400 transition-all duration-75';
           }
         }
+
+        // Dev Overlay Stats (Milestone 9)
+        if (devVisibleRef.current) {
+          if (devFpsRef.current) devFpsRef.current.textContent = String(otterTelemetry.fps);
+          if (devCallsRef.current) devCallsRef.current.textContent = String(otterTelemetry.drawCalls);
+          if (devTrianglesRef.current) devTrianglesRef.current.textContent = otterTelemetry.triangles.toLocaleString();
+        }
       }
 
       animId = requestAnimationFrame(updateLoop);
@@ -226,6 +246,32 @@ export function Hud({ tunables }: HudProps) {
 
   return (
     <div className="pointer-events-none absolute inset-0 z-10 flex flex-col justify-between p-6 select-none font-sans text-white">
+      {/* Dev Overlay (Milestone 9: F3 Toggle) */}
+      <div
+        ref={devOverlayRef}
+        style={{ display: 'none' }}
+        className="pointer-events-auto absolute top-24 left-6 z-30 bg-slate-950/90 border border-emerald-500/40 rounded-2xl p-4 font-mono text-xs shadow-2xl backdrop-blur-md text-slate-200 min-w-[220px]"
+      >
+        <div className="flex items-center justify-between border-b border-white/10 pb-2 mb-2">
+          <span className="font-bold text-emerald-400 tracking-wider">DEV STATS (F3)</span>
+          <span className="text-[10px] text-slate-500">REALTIME</span>
+        </div>
+        <div className="space-y-1.5">
+          <div className="flex justify-between">
+            <span className="text-slate-400">FPS:</span>
+            <span ref={devFpsRef} className="font-bold text-emerald-400">60</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-slate-400">Draw Calls:</span>
+            <span ref={devCallsRef} className="font-bold text-sky-400">0</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-slate-400">Triangles:</span>
+            <span ref={devTrianglesRef} className="font-bold text-amber-300">0</span>
+          </div>
+        </div>
+      </div>
+
       {/* Top Banner & Timer Display */}
       <header className="flex items-start justify-between w-full">
         {/* Track Title Card */}

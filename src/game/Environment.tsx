@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useRef } from 'react';
+import React, { useMemo, useRef, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { GAME_CONSTANTS } from './constants';
@@ -114,23 +114,30 @@ function SceneryElements() {
     []
   );
 
+  const meshRef = useRef<THREE.InstancedMesh>(null);
+
+  useEffect(() => {
+    if (!meshRef.current) return;
+    const dummy = new THREE.Object3D();
+    for (let i = 0; i < rockPlacements.length; i++) {
+      const rock = rockPlacements[i];
+      dummy.position.set(rock.pos[0], rock.pos[1], rock.pos[2]);
+      dummy.rotation.set(0, rock.rot, 0);
+      dummy.scale.set(rock.scale[0], rock.scale[1], rock.scale[2]);
+      dummy.updateMatrix();
+      meshRef.current.setMatrixAt(i, dummy.matrix);
+    }
+    meshRef.current.instanceMatrix.needsUpdate = true;
+  }, [rockPlacements]);
+
   return (
-    <group>
-      {rockPlacements.map((rock, idx) => (
-        <mesh
-          key={idx}
-          position={rock.pos as [number, number, number]}
-          scale={rock.scale as [number, number, number]}
-          rotation={[0, rock.rot, 0]}
-        >
-          <dodecahedronGeometry args={[1, 0]} />
-          <meshToonMaterial
-            gradientMap={threeStepGradientMap}
-            color="#64748b"
-          />
-        </mesh>
-      ))}
-    </group>
+    <instancedMesh ref={meshRef} args={[undefined, undefined, rockPlacements.length]}>
+      <dodecahedronGeometry args={[1, 0]} />
+      <meshToonMaterial
+        gradientMap={threeStepGradientMap}
+        color="#64748b"
+      />
+    </instancedMesh>
   );
 }
 

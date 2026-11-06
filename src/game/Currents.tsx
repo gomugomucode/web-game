@@ -3,6 +3,7 @@
 import React, { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { Track } from './tracks/types';
 import { GAME_CONSTANTS } from './constants';
 import { smoothCenterline } from './math';
@@ -129,6 +130,13 @@ export function Currents({ track }: CurrentsProps) {
     });
   }, [track.currents]);
 
+  // Merged geometry for all current tint strips (Milestone 9 optimization)
+  const mergedCurrentsGeo = useMemo(() => {
+    const geoms = processedCurrents.map((c) => c.geometry);
+    if (geoms.length === 0) return null;
+    return mergeGeometries(geoms, false);
+  }, [processedCurrents]);
+
   // 2. Pre-generate deterministic flow streak descriptors in a mutable ref (~40 streaks per current)
   const totalStreakCount = track.currents.length * GAME_CONSTANTS.CURRENT_STREAK_COUNT;
   const streaksRef = useRef<CurrentStreak[]>(
@@ -216,9 +224,9 @@ export function Currents({ track }: CurrentsProps) {
 
   return (
     <group>
-      {/* 1. Lighter tinted strips along each current at the water surface */}
-      {processedCurrents.map((cur) => (
-        <mesh key={`current-strip-${cur.id}`} geometry={cur.geometry} renderOrder={2}>
+      {/* 1. Lighter tinted strips along currents at the water surface (single merged mesh) */}
+      {mergedCurrentsGeo && (
+        <mesh geometry={mergedCurrentsGeo} renderOrder={2}>
           <meshBasicMaterial
             color={GAME_CONSTANTS.CURRENT_TINT_COLOR}
             transparent
@@ -229,7 +237,7 @@ export function Currents({ track }: CurrentsProps) {
             polygonOffsetUnits={-1}
           />
         </mesh>
-      ))}
+      )}
 
       {/* 2. Animated flow streaks as a single InstancedMesh moving downstream */}
       <instancedMesh

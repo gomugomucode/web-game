@@ -14,6 +14,7 @@ export interface OtterTelemetry {
   playerRank: number;
   totalRacers: number;
   drawCalls: number;
+  triangles: number;
   fps: number;
 }
 
@@ -27,6 +28,11 @@ export const otterTelemetry: OtterTelemetry = {
   playerRank: 1,
   totalRacers: 4,
   drawCalls: 0,
+  triangles: 0,
   fps: 60,
 };
+
+if (typeof window !== 'undefined') {
+  (window as unknown as { __otterTelemetry: OtterTelemetry }).__otterTelemetry = otterTelemetry;
+}
 

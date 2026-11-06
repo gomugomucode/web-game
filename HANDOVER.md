@@ -2,7 +2,7 @@
 
 > **Developer Context**: Solo project built with Next.js 16 (App Router), React 19, Three.js, `@react-three/fiber` v9, `@react-three/drei`, Tailwind CSS v4, Zustand, and Leva.
 > **Repository**: [https://github.com/gomugomucode/web-game.git](https://github.com/gomugomucode/web-game.git) (Branch: `main`)
-> **Current Version**: Milestone 1, 2, and 3 Complete + Vision Document Aesthetic Upgrades.
+> **Current Version**: Milestones 1 through 9 Complete.
 
 ---
 
@@ -19,6 +19,7 @@
 * [x] **Milestone 6**: Visual Look (Shared 3-step toon gradient map with NearestFilter, animated water shader with downstream ripples, foam streamlines, shoreline fringes, toon specular glint, and distance fog).
 * [x] **Milestone 7**: Hazards (Obstacle rocks near currents requiring slalom weaving, 0.5x speed penalty, 0.4s cooldown, dark obsidian stone with amber warning rings).
 * [x] **Milestone 8**: Rival Otters (3 simplified AI rivals with individual colors and lanes, target speeds 92%-102% of cruise, hazard rock avoidance, current riding, soft separation, live HUD position indicator "X / 4", and final race position results).
+* [x] **Milestone 9**: Performance & Measurement (Real-time renderer dev overlay toggled via <kbd>F3</kbd> showing `gl.info.render.calls`, `gl.info.render.triangles`, and 0.5s smoothed FPS with zero React tree re-renders; draw calls reduced from 67 down to 40 at ready screen, 41 mid-race, and 44 during dash—all safely below the 50 budget; InstancedMesh for hazards and scenery rocks, merged gate geometries per material, merged current ribbons, merged river banks, and eliminated occluded subsurface riverbed).
 * [x] **Vision Aesthetics**: Genshin-inspired river valley with warm directional sunlight, atmospheric sky fog, valley ground floor, low-poly rocks, floating leaves, start/finish gates, water wake, and anime speed streaks.
 
 ---
@@ -126,6 +127,25 @@
   * Key controls guide.
 * **Leva Panel**: Live tuning of `accel`, `drag`, `brakeDrag`, `turnRate`, `lateralDamp`, `dashImpulse`, `dashCooldown`, `dashDuration`, and `dashThrustMult`.
 
+### 4.6 Performance Optimization & Dev Overlay (Milestone 9)
+* **Dev Overlay (<kbd>F3</kbd> Toggle)** (`src/game/DevPerformanceMonitor.tsx`, `src/ui/Hud.tsx`):
+  * Mounts a small non-intrusive HUD panel toggled by <kbd>F3</kbd> (hidden by default).
+  * Measures REAL renderer metrics directly from Three.js: `gl.info.render.calls`, `gl.info.render.triangles`, and 0.5s window smoothed FPS.
+  * Zero React tree re-renders: updates via an independent `requestAnimationFrame` loop modifying DOM element text directly.
+* **Instanced Geometry Reductions**:
+  * **Hazard Rocks (`Hazards.tsx`)**: Replaced 24 individual meshes with 3 `InstancedMesh` nodes (rocks, water warning rings with `renderOrder={3}` and `depthWrite={false}`, and warning beacon cones). Reduced hazard draw calls from 24 to 3 (-21 calls).
+  * **Scenery Rocks (`Environment.tsx`)**: Replaced 10 individual rock meshes with 1 `InstancedMesh`. Reduced scenery draw calls from 10 to 1 (-9 calls).
+* **Merged Static Geometries**:
+  * **Gates (`River.tsx`)**: Merged wooden posts and crossbar into a single buffer geometry per gate (`startGateFrameGeo`, `checkpointGateFrameGeo`, `finishGateFrameGeo`). Merged twin lanterns/dots into single geometries (`startGateLanternsGeo`, `checkpointDotsGeo`, `finishLanternsGeo`). Dynamic highlight colors (next checkpoint, completed) remain fully functional. Reduced gate draw calls by 13.
+  * **River Banks (`River.tsx`)**: Merged left and right raised banks into a single `banksGeo` buffer geometry (-1 call).
+  * **River Bed Occlusion Removal (`River.tsx`)**: Removed redundant subsurface riverbed mesh at $y = -0.15$ underneath the fully opaque water surface (-1 call).
+  * **Current Strips (`Currents.tsx`)**: Merged both current ribbon strips into a single buffer geometry rendered in 1 mesh (-1 call).
+* **Final Measured Results**:
+  * **Ready Screen**: **40 draw calls** (was 67), 27,728 triangles, 149+ FPS.
+  * **Mid-Race with Rivals**: **41 draw calls** (was 64), 28,256 triangles, 149+ FPS.
+  * **During Dash**: **44 draw calls** (was 67), 28,292 triangles, 149+ FPS.
+  * All states well under the strict target of **under 50 draw calls**.
+
 ---
 
 ## 5. File Structure Reference
@@ -139,9 +159,27 @@ src/
 ├── game/
 │   ├── CameraRig.tsx       # Follow camera with smoothing, dynamic FOV, anti-clipping
 │   ├── constants.ts        # Single source of truth for all tunable constants
-│   ├── Environment.tsx     # Genshin-style valley, sky, fog, sunlight, rocks, floating petals
+│   ├── Currents.tsx        # Merged current strips and instanced flow streaks
+│   ├── DevPerformanceMonitor.tsx # In-canvas Three.js renderer stats collector
+│   ├── Environment.tsx     # Genshin-style valley, sky, fog, sunlight, instanced rocks, floating petals
 │   ├── Game.tsx            # R3F Canvas mount, lighting, Leva panel, composition
+│   ├── Hazards.tsx         # Instanced hazard rocks, surface warning rings, and beacons
 │   ├── input.ts            # Window keyboard listener ref with preventDefault & blur reset
+│   ├── math.ts             # findNearestPointOnPolyline, Catmull-Rom smoothCenterline
+│   ├── Otter.tsx           # Otter mesh, arcade physics loop, bank collision, visual feedback
+│   ├── River.tsx           # Procedural river ribbon, merged banks, merged start/checkpoint/finish gates
+│   ├── Rivals.tsx          # 3 simplified AI rivals with lane following and soft separation
+│   ├── sharedRefs.ts       # Shared physics refs (position, heading, isDashing, hasReset)
+│   ├── telemetry.ts        # Decoupled high-frequency HUD telemetry store (speed, calls, triangles, fps)
+│   ├── toonGradient.ts     # Shared 3-step DataTexture toon gradient map
+│   ├── useGameStore.ts     # Zustand store for race phases, countdown, timer, and checkpoints
+│   ├── WaterMaterial.ts    # Custom animated water shader material with toon specular and foam
+│   └── tracks/
+│       ├── river01.ts      # "Calm Bend" track data (centerline, width, start, checkpoints, currents, hazards)
+│       └── types.ts        # Track, Checkpoint, Current, Hazard, and Vec2 TypeScript interfaces
+└── ui/
+    └── Hud.tsx             # Decoupled rAF HUD overlay: speed, timer, checkpoints, rank, and F3 dev monitor
+```
 │   ├── math.ts             # findNearestPointOnPolyline, Catmull-Rom smoothCenterline
 │   ├── Otter.tsx           # Otter mesh, arcade physics loop, bank collision, visual feedback
 │   ├── River.tsx           # Procedural river ribbon, 3D raised grass banks, start/finish gates
