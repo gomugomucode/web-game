@@ -18,6 +18,7 @@
 * [x] **Milestone 5**: Currents (Acceleration along smoothed polyline with 8m smooth fade-in/out, visible flow streaks, tinted water zones).
 * [x] **Milestone 6**: Visual Look (Shared 3-step toon gradient map with NearestFilter, animated water shader with downstream ripples, foam streamlines, shoreline fringes, toon specular glint, and distance fog).
 * [x] **Milestone 7**: Hazards (Obstacle rocks near currents requiring slalom weaving, 0.5x speed penalty, 0.4s cooldown, dark obsidian stone with amber warning rings).
+* [x] **Milestone 8**: Rival Otters (3 simplified AI rivals with individual colors and lanes, target speeds 92%-102% of cruise, hazard rock avoidance, current riding, soft separation, live HUD position indicator "X / 4", and final race position results).
 * [x] **Vision Aesthetics**: Genshin-inspired river valley with warm directional sunlight, atmospheric sky fog, valley ground floor, low-poly rocks, floating leaves, start/finish gates, water wake, and anime speed streaks.
 
 ---
