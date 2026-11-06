@@ -14,8 +14,12 @@ export interface OtterSharedRefs {
 }
 
 export const sharedOtterRefs: OtterSharedRefs = {
-  position: new THREE.Vector3(0, GAME_CONSTANTS.WATER_SURFACE_Y, 0),
-  heading: 0,
+  position: new THREE.Vector3(
+    GAME_CONSTANTS.HUB_SPAWN_POS[0],
+    GAME_CONSTANTS.WATER_SURFACE_Y,
+    GAME_CONSTANTS.HUB_SPAWN_POS[1]
+  ),
+  heading: GAME_CONSTANTS.HUB_SPAWN_HEADING,
   isDashing: false,
   hasReset: false,
 };

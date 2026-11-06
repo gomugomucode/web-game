@@ -11,6 +11,7 @@ import { findNearestPointOnPolyline } from './math';
 import { river01 } from './tracks/river01';
 import { useGameStore } from './useGameStore';
 import { threeStepGradientMap } from './toonGradient';
+import { RiverBoundary, HubBoundary, HUB_OBSTACLES } from './boundaries';
 
 interface OtterProps {
   inputRef: React.RefObject<InputState>;
@@ -19,17 +20,34 @@ interface OtterProps {
 
 const clamp = (val: number, min: number, max: number) => Math.min(Math.max(val, min), max);
 
+// Pre-allocated collision boundaries implementing the common CollisionBoundary interface (Milestone 10)
+const riverBoundary = new RiverBoundary(
+  river01.smoothedCenterline ?? river01.centerline,
+  river01.halfWidth
+);
+
+const hubBoundary = new HubBoundary(
+  GAME_CONSTANTS.HUB_POND_CENTER[0],
+  GAME_CONSTANTS.HUB_POND_CENTER[1],
+  GAME_CONSTANTS.HUB_POND_RADIUS,
+  HUB_OBSTACLES
+);
+
 export function Otter({ inputRef, tunables }: OtterProps) {
-  // Start otter at track start position facing track start heading (Section 7 & Milestone 3)
+  // Start otter at hub spawn position or track start position
+  const initialMode = useGameStore.getState().mode;
+  const initialSpawn = initialMode === 'hub' ? GAME_CONSTANTS.HUB_SPAWN_POS : river01.start.pos;
+  const initialHeading = initialMode === 'hub' ? GAME_CONSTANTS.HUB_SPAWN_HEADING : river01.start.heading;
+
   const posRef = useRef(
     new THREE.Vector3(
-      river01.start.pos[0],
+      initialSpawn[0],
       GAME_CONSTANTS.WATER_SURFACE_Y,
-      river01.start.pos[1]
+      initialSpawn[1]
     )
   );
   const velRef = useRef(new THREE.Vector3(0, 0, 0));
-  const headingRef = useRef(river01.start.heading);
+  const headingRef = useRef(initialHeading);
 
   // Dash state timers
   const dashCooldownTimerRef = useRef(0);
@@ -58,20 +76,24 @@ export function Otter({ inputRef, tunables }: OtterProps) {
     const v = velRef.current;
     const pos = posRef.current;
 
-    // Read current race phase and store actions without subscribing React components
+    // Read current mode and race phase from store
     const gameState = useGameStore.getState();
+    const mode = gameState.mode;
     const phase = gameState.phase;
 
-    // Detect a runId change at the top of useFrame and reset to start (Requirement 1)
+    // Detect a runId change at the top of useFrame and reset to spawn (Milestone 10)
     if (gameState.runId !== lastRunIdRef.current) {
       lastRunIdRef.current = gameState.runId;
+      const spawnPos = mode === 'hub' ? GAME_CONSTANTS.HUB_SPAWN_POS : river01.start.pos;
+      const spawnHeading = mode === 'hub' ? GAME_CONSTANTS.HUB_SPAWN_HEADING : river01.start.heading;
+
       pos.set(
-        river01.start.pos[0],
+        spawnPos[0],
         GAME_CONSTANTS.WATER_SURFACE_Y,
-        river01.start.pos[1]
+        spawnPos[1]
       );
       v.set(0, 0, 0);
-      headingRef.current = river01.start.heading;
+      headingRef.current = spawnHeading;
       dashCooldownTimerRef.current = 0;
       dashBoostTimerRef.current = 0;
       hazardCooldownTimerRef.current = 0;
@@ -81,11 +103,11 @@ export function Otter({ inputRef, tunables }: OtterProps) {
 
       if (rootGroupRef.current) {
         rootGroupRef.current.position.set(
-          river01.start.pos[0],
+          spawnPos[0],
           GAME_CONSTANTS.WATER_SURFACE_Y,
-          river01.start.pos[1]
+          spawnPos[1]
         );
-        rootGroupRef.current.rotation.y = river01.start.heading;
+        rootGroupRef.current.rotation.y = spawnHeading;
       }
 
       if (visualGroupRef.current) {
@@ -95,48 +117,58 @@ export function Otter({ inputRef, tunables }: OtterProps) {
       }
 
       sharedOtterRefs.position.copy(pos);
-      sharedOtterRefs.heading = river01.start.heading;
+      sharedOtterRefs.heading = spawnHeading;
       sharedOtterRefs.isDashing = false;
       sharedOtterRefs.hasReset = true; // camera snap
 
       otterTelemetry.speed = 0;
-      otterTelemetry.headingDeg = 0;
+      otterTelemetry.headingDeg = (spawnHeading * 180) / Math.PI;
       otterTelemetry.dashCooldownRemaining = 0;
       otterTelemetry.isDashing = false;
       otterTelemetry.inCurrent = false;
-      otterTelemetry.position[0] = river01.start.pos[0];
+      otterTelemetry.position[0] = spawnPos[0];
       otterTelemetry.position[1] = GAME_CONSTANTS.WATER_SURFACE_Y;
-      otterTelemetry.position[2] = river01.start.pos[1];
+      otterTelemetry.position[2] = spawnPos[1];
     }
 
-    // Edge-detected R key restarts via store restart() (Requirement 1)
+    // Edge-detected R key restarts via store restart() (Requirement 1 & 4)
     const restartJustPressed = input.restart && !prevRestartRef.current;
     prevRestartRef.current = input.restart;
     if (restartJustPressed) {
       useGameStore.getState().restart();
     }
 
-    // Ready screen start trigger (Enter or Space) (Requirement 2)
-    if (phase === 'idle' && input.start) {
+    // Ready screen start trigger (Enter or Space) in race mode (Requirement 2)
+    if (mode === 'race' && phase === 'idle' && input.start) {
       gameState.startCountdown();
     }
 
-    // Race Flow Input Permissions (Milestone 4, Requirement 1 & 5)
+    // Movement & Steering Input Permissions (Milestone 4 & 10)
     let allowSteering = true;
     let allowThrust = true;
     let allowDash = true;
 
-    if (phase === 'countdown' || phase === 'idle') {
-      // Ignore player input during countdown and idle (Requirement 1)
-      allowSteering = false;
-      allowThrust = false;
-      allowDash = false;
-      v.set(0, 0, 0);
-    } else if (phase === 'finished') {
-      // After finishing, lock steering input and let the otter coast (Requirement 5)
-      allowSteering = false;
-      allowThrust = false;
-      allowDash = false;
+    if (mode === 'hub') {
+      if (gameState.isDialogueOpen) {
+        // Lock player input during dialogue in the hub
+        allowSteering = false;
+        allowThrust = false;
+        allowDash = false;
+        v.set(0, 0, 0);
+      }
+    } else {
+      // Race Flow Input Permissions
+      if (phase === 'countdown' || phase === 'idle') {
+        allowSteering = false;
+        allowThrust = false;
+        allowDash = false;
+        v.set(0, 0, 0);
+      } else if (phase === 'finished') {
+        // After finishing, lock steering input and let the otter coast
+        allowSteering = false;
+        allowThrust = false;
+        allowDash = false;
+      }
     }
 
     // 2. Horizontal speed on X-Z plane
@@ -216,9 +248,9 @@ export function Otter({ inputRef, tunables }: OtterProps) {
     v.x = vForward * fwdX + vSide * rightX;
     v.z = vForward * fwdZ + vSide * rightZ;
 
-    // 9.5 River Currents Acceleration (Milestone 5, Task A)
+    // 9.5 River Currents Acceleration (Milestone 5, Task A - Race mode only)
     let inAnyCurrent = false;
-    if (phase === 'racing' || phase === 'finished') {
+    if (mode === 'race' && (phase === 'racing' || phase === 'finished')) {
       const currentList = river01.currents;
       const strengthScale = tunables.currentStrength / GAME_CONSTANTS.CURRENT_STRENGTH;
       for (let i = 0; i < currentList.length; i++) {
@@ -258,70 +290,54 @@ export function Otter({ inputRef, tunables }: OtterProps) {
     pos.x += v.x * dt;
     pos.z += v.z * dt;
 
-    // 11. River Boundary Collision (Milestone 3 & Milestone 5 Step 0, Section 6.2)
-    const boundaryCenterline = river01.smoothedCenterline ?? river01.centerline;
-    const nearest = findNearestPointOnPolyline(pos.x, pos.z, boundaryCenterline);
-    const maxAllowedDist = river01.halfWidth - GAME_CONSTANTS.BOUNDARY_COLLISION_RADIUS;
+    // 11. Boundary Collision (Common Interface - Milestone 10)
+    const boundary = mode === 'hub' ? hubBoundary : riverBoundary;
+    boundary.resolveCollision(pos, v);
 
-    if (nearest.distance > maxAllowedDist) {
-      // Move the otter back to the bank boundary edge
-      pos.x = nearest.point[0] + nearest.outwardX * maxAllowedDist;
-      pos.z = nearest.point[1] + nearest.outwardZ * maxAllowedDist;
+    // 11.5 Hazard Rocks Collision (Milestone 7, Task B - Race mode only)
+    if (mode === 'race') {
+      const hazards = river01.hazards;
+      const otterRad = GAME_CONSTANTS.OTTER_RADIUS;
+      for (let i = 0; i < hazards.length; i++) {
+        const rock = hazards[i];
+        const totalRad = rock.radius + otterRad;
+        const dx = pos.x - rock.pos[0];
+        const dz = pos.z - rock.pos[1];
+        const distSq = dx * dx + dz * dz;
 
-      // Outward component of velocity into the bank
-      const outwardVel = v.x * nearest.outwardX + v.z * nearest.outwardZ;
-      if (outwardVel > 0) {
-        v.x -= outwardVel * nearest.outwardX;
-        v.z -= outwardVel * nearest.outwardZ;
+        if (distSq < totalRad * totalRad) {
+          const dist = Math.sqrt(distSq);
+          let nx = 0;
+          let nz = 1;
+          if (dist > 0.0001) {
+            nx = dx / dist;
+            nz = dz / dist;
+          }
 
-        // Multiply speed by 0.7 per Section 6.2
-        v.x *= GAME_CONSTANTS.BOUNDARY_SPEED_MULTIPLIER;
-        v.z *= GAME_CONSTANTS.BOUNDARY_SPEED_MULTIPLIER;
-      }
-    }
+          // Push otter out along contact normal
+          pos.x = rock.pos[0] + nx * totalRad;
+          pos.z = rock.pos[1] + nz * totalRad;
 
-    // 11.5 Hazard Rocks Collision (Milestone 7, Task B)
-    const hazards = river01.hazards;
-    const otterRad = GAME_CONSTANTS.OTTER_RADIUS;
-    for (let i = 0; i < hazards.length; i++) {
-      const rock = hazards[i];
-      const totalRad = rock.radius + otterRad;
-      const dx = pos.x - rock.pos[0];
-      const dz = pos.z - rock.pos[1];
-      const distSq = dx * dx + dz * dz;
+          // Remove inward velocity component
+          const normalVel = v.x * nx + v.z * nz;
+          if (normalVel < 0) {
+            v.x -= normalVel * nx;
+            v.z -= normalVel * nz;
+          }
 
-      if (distSq < totalRad * totalRad) {
-        const dist = Math.sqrt(distSq);
-        let nx = 0;
-        let nz = 1;
-        if (dist > 0.0001) {
-          nx = dx / dist;
-          nz = dz / dist;
-        }
-
-        // Push otter out along contact normal
-        pos.x = rock.pos[0] + nx * totalRad;
-        pos.z = rock.pos[1] + nz * totalRad;
-
-        // Remove inward velocity component
-        const normalVel = v.x * nx + v.z * nz;
-        if (normalVel < 0) {
-          v.x -= normalVel * nx;
-          v.z -= normalVel * nz;
-        }
-
-        // Multiply speed by 0.5 with 0.4s cooldown
-        if (hazardCooldownTimerRef.current <= 0) {
-          hazardCooldownTimerRef.current = GAME_CONSTANTS.HAZARD_COOLDOWN;
-          v.x *= GAME_CONSTANTS.HAZARD_SPEED_MULTIPLIER;
-          v.z *= GAME_CONSTANTS.HAZARD_SPEED_MULTIPLIER;
+          // Multiply speed by 0.5 with 0.4s cooldown
+          if (hazardCooldownTimerRef.current <= 0) {
+            hazardCooldownTimerRef.current = GAME_CONSTANTS.HAZARD_COOLDOWN;
+            v.x *= GAME_CONSTANTS.HAZARD_SPEED_MULTIPLIER;
+            v.z *= GAME_CONSTANTS.HAZARD_SPEED_MULTIPLIER;
+          }
         }
       }
     }
 
-    // 12. Checkpoint Hit Detection (Milestone 4, Requirement 2 & 5)
+    // 12. Checkpoint Hit Detection (Milestone 4, Requirement 2 & 5 - Race mode only)
     // Only checked in order using squared-distance checks (zero allocations in useFrame)
-    if (phase === 'racing') {
+    if (mode === 'race' && phase === 'racing') {
       const currentCpIndex = gameState.nextCheckpoint;
       if (currentCpIndex < river01.checkpoints.length) {
         const cp = river01.checkpoints[currentCpIndex];

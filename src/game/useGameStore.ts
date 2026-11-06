@@ -2,10 +2,11 @@ import { create } from 'zustand';
 import { GAME_CONSTANTS } from './constants';
 import { river01 } from './tracks/river01';
 
+export type GameMode = 'hub' | 'race';
 export type RacePhase = 'idle' | 'countdown' | 'racing' | 'finished';
 
 export interface GameStoreState {
-  // Store only the exact properties required by Section 6.7
+  mode: GameMode;
   phase: RacePhase;
   raceStartTime: number | null;
   finishTime: number | null;
@@ -15,7 +16,22 @@ export interface GameStoreState {
   runId: number;
   playerRank: number;
 
+  // Dialogue state (Milestone 10)
+  isDialogueOpen: boolean;
+  dialogueIndex: number;
+  selectedChoiceIndex: number;
+  isNearNpc: boolean;
+
   // Actions
+  setMode: (mode: GameMode) => void;
+  startRaceFromHub: () => void;
+  returnToHub: () => void;
+  openDialogue: () => void;
+  advanceDialogue: () => void;
+  selectChoice: (index: number) => void;
+  closeDialogue: () => void;
+  setIsNearNpc: (near: boolean) => void;
+
   startCountdown: () => void;
   startRace: () => void;
   hitCheckpoint: (index: number) => void;
@@ -53,7 +69,8 @@ function saveStoredBestTime(trackId: string, time: number): void {
 }
 
 export const useGameStore = create<GameStoreState>((set, get) => ({
-  phase: 'idle', // Starts on ready screen (idle) on page load
+  mode: 'hub', // Game starts in 'hub' (Milestone 10 Requirement 1)
+  phase: 'idle',
   raceStartTime: null,
   finishTime: null,
   bestTime: loadStoredBestTime('river-01'),
@@ -61,6 +78,70 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
   trackId: 'river-01',
   runId: 0,
   playerRank: 1,
+
+  isDialogueOpen: false,
+  dialogueIndex: 0,
+  selectedChoiceIndex: 0,
+  isNearNpc: false,
+
+  setMode: (mode: GameMode) => set({ mode }),
+
+  startRaceFromHub: () =>
+    set((state) => ({
+      mode: 'race',
+      phase: 'idle',
+      raceStartTime: null,
+      finishTime: null,
+      nextCheckpoint: 0,
+      runId: state.runId + 1,
+      playerRank: 1,
+      isDialogueOpen: false,
+      dialogueIndex: 0,
+      selectedChoiceIndex: 0,
+    })),
+
+  returnToHub: () =>
+    set((state) => ({
+      mode: 'hub',
+      phase: 'idle',
+      raceStartTime: null,
+      finishTime: null,
+      nextCheckpoint: 0,
+      runId: state.runId + 1,
+      isDialogueOpen: false,
+      dialogueIndex: 0,
+      selectedChoiceIndex: 0,
+    })),
+
+  openDialogue: () =>
+    set({
+      isDialogueOpen: true,
+      dialogueIndex: 0,
+      selectedChoiceIndex: 0,
+    }),
+
+  advanceDialogue: () =>
+    set((state) => ({
+      dialogueIndex: state.dialogueIndex + 1,
+      selectedChoiceIndex: 0,
+    })),
+
+  selectChoice: (index: number) =>
+    set({
+      selectedChoiceIndex: index,
+    }),
+
+  closeDialogue: () =>
+    set({
+      isDialogueOpen: false,
+      dialogueIndex: 0,
+      selectedChoiceIndex: 0,
+    }),
+
+  setIsNearNpc: (near: boolean) =>
+    set({
+      isNearNpc: near,
+    }),
 
   startCountdown: () =>
     set((state) => ({
@@ -97,13 +178,22 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
       finishTime: time,
       bestTime: finalBest,
       playerRank: rank,
-      nextCheckpoint: river01.checkpoints.length, // Dynamic checkpoints length
+      nextCheckpoint: river01.checkpoints.length,
     });
   },
 
   restart: () => {
     const state = get();
-    // Reload best time from storage in case it updated
+    if (state.mode === 'hub') {
+      // In hub, R returns the otter to the hub spawn point
+      set((s) => ({
+        runId: s.runId + 1,
+        isDialogueOpen: false,
+      }));
+      return;
+    }
+
+    // In race, R restarts countdown
     const currentBest = loadStoredBestTime(state.trackId);
     set((s) => ({
       phase: 'countdown',

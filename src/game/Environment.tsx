@@ -45,7 +45,11 @@ function createInitialParticles(): Particle[] {
  * - Clusters of low-poly river rocks and reeds
  * - Floating anime cherry blossom / leaf particles drifting on the river breeze
  */
-export function Environment() {
+interface EnvironmentProps {
+  mode?: 'hub' | 'race';
+}
+
+export function Environment({ mode = 'race' }: EnvironmentProps) {
   return (
     <group>
       {/* 1. Distance Atmospheric Fog */}
@@ -85,8 +89,8 @@ export function Environment() {
         />
       </mesh>
 
-      {/* 5. Natural River Elements: Rocks and Scenery */}
-      <SceneryElements />
+      {/* 5. Natural River Elements: Rocks and Scenery (only in race mode) */}
+      {mode === 'race' && <SceneryElements />}
 
       {/* 6. Floating Breeze Leaves / Petals */}
       <FloatingPetals />

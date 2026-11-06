@@ -13,12 +13,16 @@ import { Currents } from './Currents';
 import { Hazards } from './Hazards';
 import { Environment } from './Environment';
 import { CameraRig } from './CameraRig';
+import { HubScene } from './HubScene';
 import { river01 } from './tracks/river01';
+import { useGameStore } from './useGameStore';
 import { Hud } from '../ui/Hud';
+import { DialogueOverlay } from '../ui/DialogueOverlay';
 
 export function Game() {
   // Global keyboard input listener ref
   const inputRef = useKeyboardInput();
+  const mode = useGameStore((state) => state.mode);
 
   // Leva controls for live tuning of movement values
   const tunables = useControls('Movement Tunables', {
@@ -99,17 +103,20 @@ export function Game() {
       {/* Leva Live Tuning Panel in Development */}
       <Leva collapsed={false} oneLineLabels={false} />
 
-      {/* High-performance Race HUD (Milestone 4) */}
+      {/* High-performance Race & Hub HUD */}
       <Hud tunables={tunables} />
+
+      {/* Dialogue Overlay (Milestone 10) */}
+      <DialogueOverlay />
 
       {/* 3D Scene Canvas */}
       <Canvas
         dpr={GAME_CONSTANTS.CANVAS_DPR}
         camera={{
           position: [
-            river01.start.pos[0],
+            GAME_CONSTANTS.HUB_SPAWN_POS[0],
             GAME_CONSTANTS.CAMERA_HEIGHT,
-            river01.start.pos[1] - GAME_CONSTANTS.CAMERA_BEHIND_DISTANCE,
+            GAME_CONSTANTS.HUB_SPAWN_POS[1] - GAME_CONSTANTS.CAMERA_BEHIND_DISTANCE,
           ],
           fov: GAME_CONSTANTS.CAMERA_BASE_FOV,
           near: 0.1,
@@ -118,23 +125,24 @@ export function Game() {
         gl={{ antialias: true, alpha: false }}
         className="w-full h-full block"
       >
-        {/* Genshin-style Valley Environment: sky, soft fog, warm sunlight, rocks, floating petals */}
-        <Environment />
+        {/* Genshin-style Valley Environment: sky, soft fog, warm sunlight, ground terrain, petals */}
+        <Environment mode={mode} />
 
-        {/* River Track: procedural water ribbon, raised grass banks, start and finish gates */}
-        <River track={river01} />
+        {/* Milestone 10: Hub Scene (pond, docks, scenery rocks, reeds, NPC Barnaby) */}
+        {mode === 'hub' && <HubScene />}
 
-        {/* Milestone 5: River currents with lighter tinted ribbon strips and flow streaks */}
-        <Currents track={river01} />
+        {/* Race Track, Currents, Hazards, and Rivals (Active in Race mode only) */}
+        {mode === 'race' && (
+          <>
+            <River track={river01} />
+            <Currents track={river01} />
+            <Hazards track={river01} />
+            <Rivals />
+          </>
+        )}
 
-        {/* Milestone 7: Obstacle rocks near currents requiring weaving navigation */}
-        <Hazards track={river01} />
-
-        {/* Otter mesh, movement loop, and river bank boundary collision */}
+        {/* Otter player model, physics and boundary collision */}
         <Otter inputRef={inputRef} tunables={tunables} />
-
-        {/* Milestone 8: 3 Rival otters racing along river01 with path following and hazard avoidance */}
-        <Rivals />
 
         {/* Milestone 9: Real-time renderer performance monitor (gl.info.render) */}
         <DevPerformanceMonitor />

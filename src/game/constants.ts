@@ -80,6 +80,14 @@ export const GAME_CONSTANTS = {
   BOB_FREQUENCY: 7.0, // Frequency of swimming bob oscillation
   SQUASH_STRETCH_AMOUNT: 0.2, // Visual mesh scale deformation during dash
 
+  // Hub Mode (Milestone 10)
+  HUB_SPAWN_POS: [0, -12] as [number, number],
+  HUB_SPAWN_HEADING: 0,
+  HUB_POND_RADIUS: 30.0, // 60m across pond
+  HUB_POND_CENTER: [0, 0] as [number, number],
+  HUB_NPC_POS: [0, 9.5] as [number, number],
+  HUB_NPC_INTERACT_RADIUS: 4.0, // Distance (m) to show [E] Talk prompt
+
   // Rivals (Milestone 8)
   RIVAL_COUNT: 3,
   RIVAL_SEPARATION_RADIUS: 1.0, // Soft visual separation radius (m) between racers

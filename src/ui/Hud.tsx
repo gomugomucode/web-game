@@ -25,6 +25,7 @@ export function formatTime(ms: number | null): string {
 
 export function Hud({ tunables }: HudProps) {
   // Slow state from zustand for UI panels
+  const mode = useGameStore((state) => state.mode);
   const phase = useGameStore((state) => state.phase);
   const nextCheckpoint = useGameStore((state) => state.nextCheckpoint);
   const finishTime = useGameStore((state) => state.finishTime);
@@ -32,6 +33,7 @@ export function Hud({ tunables }: HudProps) {
   const playerRank = useGameStore((state) => state.playerRank);
   const restart = useGameStore((state) => state.restart);
   const startCountdown = useGameStore((state) => state.startCountdown);
+  const returnToHub = useGameStore((state) => state.returnToHub);
 
   // High-frequency DOM references updated in rAF loop (zero React tree re-renders)
   const timerTextRef = useRef<HTMLSpanElement>(null);
@@ -77,6 +79,7 @@ export function Hud({ tunables }: HudProps) {
         }
       } else if (
         (e.code === 'Enter' || e.code === 'NumpadEnter' || e.code === 'Space') &&
+        useGameStore.getState().mode === 'race' &&
         useGameStore.getState().phase === 'idle'
       ) {
         e.preventDefault();
@@ -101,8 +104,8 @@ export function Hud({ tunables }: HudProps) {
         countdownStartTimeRef.current = null;
       }
 
-      // --- 1. Countdown Phase Handling (Requirement 1: 3, 2, 1, GO) ---
-      if (gameState.phase === 'countdown') {
+      // --- 1. Countdown Phase Handling (Requirement 1: 3, 2, 1, GO - Race mode only) ---
+      if (gameState.mode === 'race' && gameState.phase === 'countdown') {
         if (countdownStartTimeRef.current === null) {
           countdownStartTimeRef.current = timestamp;
         }
@@ -130,7 +133,7 @@ export function Hud({ tunables }: HudProps) {
             gameState.startRace();
           }
         }
-      } else if (gameState.phase === 'racing') {
+      } else if (gameState.mode === 'race' && gameState.phase === 'racing') {
         // Show "GO!" for the first 0.8s of racing
         if (gameState.raceStartTime && timestamp - gameState.raceStartTime < 800) {
           if (countdownOverlayRef.current && countdownTextRef.current) {
@@ -151,12 +154,12 @@ export function Hud({ tunables }: HudProps) {
         }
       }
 
-      // --- 2. Live Timer Display (Requirement 3: mm:ss.mmm) ---
+      // --- 2. Live Timer Display (Race mode only) ---
       if (timerTextRef.current) {
-        if (gameState.phase === 'racing' && gameState.raceStartTime) {
+        if (gameState.mode === 'race' && gameState.phase === 'racing' && gameState.raceStartTime) {
           const elapsed = performance.now() - gameState.raceStartTime;
           timerTextRef.current.textContent = formatTime(elapsed);
-        } else if (gameState.phase === 'finished' && gameState.finishTime !== null) {
+        } else if (gameState.mode === 'race' && gameState.phase === 'finished' && gameState.finishTime !== null) {
           timerTextRef.current.textContent = formatTime(gameState.finishTime);
         } else {
           timerTextRef.current.textContent = '00:00.000';
@@ -282,60 +285,65 @@ export function Hud({ tunables }: HudProps) {
               <h1 className="text-lg font-black tracking-wide bg-gradient-to-r from-sky-400 via-teal-300 to-emerald-400 bg-clip-text text-transparent">
                 OTTER RUN
               </h1>
-              <p className="text-xs text-emerald-400 font-medium">Track 01: Calm Bend</p>
+              <p className="text-xs text-emerald-400 font-medium">
+                {mode === 'hub' ? 'Otter Haven (Hub)' : 'Track 01: Calm Bend'}
+              </p>
             </div>
           </div>
         </div>
 
-        {/* Center Timer Display (Requirement 3: mm:ss.mmm) */}
-        <div className="flex flex-col items-center">
-          <div className="bg-slate-900/90 backdrop-blur-md rounded-2xl px-6 py-2.5 border border-white/15 shadow-2xl flex items-center gap-3">
-            <span className="text-sm font-bold text-sky-400 tracking-wider uppercase">Time</span>
-            <span
-              ref={timerTextRef}
-              className="font-mono text-3xl sm:text-4xl font-black text-amber-300 tracking-tight"
-            >
-              00:00.000
-            </span>
-          </div>
-          {bestTime !== null && (
-            <div className="mt-1 text-[11px] font-mono text-slate-300 bg-slate-900/70 px-3 py-0.5 rounded-full border border-white/10">
-              Best: <span className="text-amber-400 font-bold">{formatTime(bestTime)}</span>
+        {/* Center Timer Display & Right Header Stats (Race mode only) */}
+        {mode === 'race' && (
+          <>
+            <div className="flex flex-col items-center">
+              <div className="bg-slate-900/90 backdrop-blur-md rounded-2xl px-6 py-2.5 border border-white/15 shadow-2xl flex items-center gap-3">
+                <span className="text-sm font-bold text-sky-400 tracking-wider uppercase">Time</span>
+                <span
+                  ref={timerTextRef}
+                  className="font-mono text-3xl sm:text-4xl font-black text-amber-300 tracking-tight"
+                >
+                  00:00.000
+                </span>
+              </div>
+              {bestTime !== null && (
+                <div className="mt-1 text-[11px] font-mono text-slate-300 bg-slate-900/70 px-3 py-0.5 rounded-full border border-white/10">
+                  Best: <span className="text-amber-400 font-bold">{formatTime(bestTime)}</span>
+                </div>
+              )}
             </div>
-          )}
-        </div>
 
-        {/* Right Header Stats: Live Position & Checkpoints */}
-        <div className="flex items-center gap-3">
-          {/* Live Position Indicator (Milestone 8) */}
-          <div className="bg-slate-900/85 backdrop-blur-md rounded-2xl px-5 py-3 border border-white/10 shadow-xl flex flex-col items-center">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-              Position
-            </span>
-            <span
-              ref={positionTextRef}
-              className="text-2xl sm:text-3xl font-black font-mono text-amber-400"
-            >
-              1st / 4
-            </span>
-          </div>
+            <div className="flex items-center gap-3">
+              {/* Live Position Indicator (Milestone 8) */}
+              <div className="bg-slate-900/85 backdrop-blur-md rounded-2xl px-5 py-3 border border-white/10 shadow-xl flex flex-col items-center">
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                  Position
+                </span>
+                <span
+                  ref={positionTextRef}
+                  className="text-2xl sm:text-3xl font-black font-mono text-amber-400"
+                >
+                  1st / 4
+                </span>
+              </div>
 
-          {/* Checkpoint Counter (Requirement 4) */}
-          <div className="bg-slate-900/85 backdrop-blur-md rounded-2xl px-5 py-3 border border-white/10 shadow-xl flex flex-col items-end">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-              Checkpoints
-            </span>
-            <span
-              ref={checkpointTextRef}
-              className="text-2xl sm:text-3xl font-black font-mono text-sky-400"
-            >
-              {nextCheckpoint} / 4
-            </span>
-          </div>
-        </div>
+              {/* Checkpoint Counter (Requirement 4) */}
+              <div className="bg-slate-900/85 backdrop-blur-md rounded-2xl px-5 py-3 border border-white/10 shadow-xl flex flex-col items-end">
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                  Checkpoints
+                </span>
+                <span
+                  ref={checkpointTextRef}
+                  className="text-2xl sm:text-3xl font-black font-mono text-sky-400"
+                >
+                  {nextCheckpoint} / 4
+                </span>
+              </div>
+            </div>
+          </>
+        )}
       </header>
 
-      {/* Countdown Overlay (Requirement 1: 3, 2, 1, GO) */}
+      {/* Countdown Overlay (Requirement 1: 3, 2, 1, GO - Race mode only) */}
       <div
         ref={countdownOverlayRef}
         className="pointer-events-none absolute inset-0 flex items-center justify-center"
@@ -344,8 +352,8 @@ export function Hud({ tunables }: HudProps) {
         <span ref={countdownTextRef} className="text-9xl font-black" />
       </div>
 
-      {/* Ready Screen Overlay (Bug 2 Fix) */}
-      {phase === 'idle' && (
+      {/* Ready Screen Overlay (Race mode only) */}
+      {mode === 'race' && phase === 'idle' && (
         <div className="pointer-events-auto absolute inset-0 z-20 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-slate-900/95 border-2 border-sky-500/50 rounded-3xl p-8 max-w-lg w-full mx-4 shadow-[0_0_50px_rgba(56,189,248,0.25)] text-center flex flex-col items-center gap-6">
             <div className="flex items-center gap-3">
@@ -451,13 +459,21 @@ export function Hud({ tunables }: HudProps) {
               </div>
             </div>
 
-            <div className="space-y-3 w-full">
+            <div className="space-y-2.5 w-full">
               <button
                 type="button"
                 onClick={() => restart()}
                 className="w-full py-3 px-6 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-sm uppercase tracking-wider rounded-xl shadow-lg transition-all active:scale-95 cursor-pointer"
               >
                 Race Again (Press R)
+              </button>
+              <button
+                type="button"
+                onClick={() => returnToHub()}
+                className="w-full py-2.5 px-6 bg-slate-800 hover:bg-slate-700 text-sky-300 font-bold text-xs uppercase tracking-wider rounded-xl border border-sky-400/30 shadow-lg transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-2"
+              >
+                <span>←</span>
+                <span>Return to Hub</span>
               </button>
               <p className="text-xs text-slate-400">
                 Steering locked while coasting · Press <kbd className="px-2 py-0.5 bg-slate-800 rounded border border-slate-700 text-amber-300 font-mono font-bold">R</kbd> to restart anytime
@@ -474,7 +490,9 @@ export function Hud({ tunables }: HudProps) {
           <div className="flex justify-between items-center mb-2">
             <h2 className="text-xs uppercase tracking-wider text-slate-400 font-bold">Controls</h2>
             <span className="text-[11px] text-sky-400 font-medium">
-              {phase === 'idle'
+              {mode === 'hub'
+                ? 'Otter Haven Pond'
+                : phase === 'idle'
                 ? 'Ready to start'
                 : phase === 'countdown'
                 ? 'Input locked during countdown'
@@ -483,28 +501,57 @@ export function Hud({ tunables }: HudProps) {
                 : 'Racing active'}
             </span>
           </div>
-          <div className="grid grid-cols-2 gap-y-2 text-xs text-slate-200">
-            <div className="flex items-center gap-2">
-              <kbd className="px-2 py-1 bg-slate-800 rounded border border-slate-700 font-mono text-amber-300 font-bold">W / ↑</kbd>
-              <span>Swim forward</span>
+          {mode === 'hub' ? (
+            <div className="grid grid-cols-2 gap-y-2 text-xs text-slate-200">
+              <div className="flex items-center gap-2">
+                <kbd className="px-2 py-1 bg-slate-800 rounded border border-slate-700 font-mono text-amber-300 font-bold">W / ↑</kbd>
+                <span>Swim forward</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <kbd className="px-2 py-1 bg-slate-800 rounded border border-slate-700 font-mono text-amber-300 font-bold">S / ↓</kbd>
+                <span>Brake (no reverse)</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <kbd className="px-2 py-1 bg-slate-800 rounded border border-slate-700 font-mono text-amber-300 font-bold">A / D / ← →</kbd>
+                <span>Steer & drift</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <kbd className="px-2 py-1 bg-slate-800 rounded border border-slate-700 font-mono text-amber-300 font-bold">Space</kbd>
+                <span>Dash impulse</span>
+              </div>
+              <div className="flex items-center gap-2 text-emerald-300">
+                <kbd className="px-2 py-1 bg-emerald-950/80 rounded border border-emerald-500/50 font-mono text-emerald-300 font-bold">E</kbd>
+                <span>Talk with Barnaby</span>
+              </div>
+              <div className="flex items-center gap-2 text-slate-400">
+                <kbd className="px-2 py-1 bg-slate-800 rounded border border-slate-700 font-mono text-slate-300">R</kbd>
+                <span>Reset to spawn</span>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <kbd className="px-2 py-1 bg-slate-800 rounded border border-slate-700 font-mono text-amber-300 font-bold">S / ↓</kbd>
-              <span>Brake (no reverse)</span>
+          ) : (
+            <div className="grid grid-cols-2 gap-y-2 text-xs text-slate-200">
+              <div className="flex items-center gap-2">
+                <kbd className="px-2 py-1 bg-slate-800 rounded border border-slate-700 font-mono text-amber-300 font-bold">W / ↑</kbd>
+                <span>Swim forward</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <kbd className="px-2 py-1 bg-slate-800 rounded border border-slate-700 font-mono text-amber-300 font-bold">S / ↓</kbd>
+                <span>Brake (no reverse)</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <kbd className="px-2 py-1 bg-slate-800 rounded border border-slate-700 font-mono text-amber-300 font-bold">A / D / ← →</kbd>
+                <span>Steer (drift in turns)</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <kbd className="px-2 py-1 bg-slate-800 rounded border border-slate-700 font-mono text-amber-300 font-bold">Space</kbd>
+                <span>Dash impulse</span>
+              </div>
+              <div className="flex items-center gap-2 col-span-2 text-slate-400">
+                <kbd className="px-2 py-1 bg-slate-800 rounded border border-slate-700 font-mono text-slate-300">R</kbd>
+                <span>Restart race at any time</span>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <kbd className="px-2 py-1 bg-slate-800 rounded border border-slate-700 font-mono text-amber-300 font-bold">A / D / ← →</kbd>
-              <span>Steer (drift in turns)</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <kbd className="px-2 py-1 bg-slate-800 rounded border border-slate-700 font-mono text-amber-300 font-bold">Space</kbd>
-              <span>Dash impulse</span>
-            </div>
-            <div className="flex items-center gap-2 col-span-2 text-slate-400">
-              <kbd className="px-2 py-1 bg-slate-800 rounded border border-slate-700 font-mono text-slate-300">R</kbd>
-              <span>Restart race at any time</span>
-            </div>
-          </div>
+          )}
         </div>
 
         {/* Live Telemetry Card (Speed & Dash Cooldown) */}
