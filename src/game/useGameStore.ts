@@ -206,3 +206,7 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
     }));
   },
 }));
+
+if (typeof window !== 'undefined') {
+  (window as unknown as { __useGameStore: typeof useGameStore }).__useGameStore = useGameStore;
+}
