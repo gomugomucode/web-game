@@ -106,6 +106,7 @@ export const RESULT_LINES = {
  */
 export const UNLOCK_BANNERS = {
   river02Unlocked: 'New river unlocked: Serpentine Rapids',
+  river03Part1: 'More river lies upstream. Coming soon.',
   river03Unlocked: 'New river unlocked: The Wellspring Run',
   wellspringStirred: 'The Wellspring glows faintly. Swim once more.',
 } as const;

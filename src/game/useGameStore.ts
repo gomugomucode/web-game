@@ -368,7 +368,8 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
     if (unlockedRiver02) {
       unlockBanner = UNLOCK_BANNERS.river02Unlocked;
     } else if (unlockedRiver03) {
-      unlockBanner = UNLOCK_BANNERS.river03Unlocked;
+      // In Part 1, Track 3 (The Wellspring Run) does not exist yet
+      unlockBanner = UNLOCK_BANNERS.river03Part1;
     }
 
     const showWisp = justCompletedRiver02Top3;
