@@ -66,6 +66,17 @@ export function Hud({ tunables }: HudProps) {
   const lastBeepRef = useRef<number | null>(null);
   const lastRunIdRef = useRef<number>(-1);
 
+  // Automatically display F3 dev overlay if ?debug is in URL (Milestone 12)
+  useEffect(() => {
+    const isDebugUrl = typeof window !== 'undefined' && window.location.search.includes('debug');
+    if (isDebugUrl) {
+      devVisibleRef.current = true;
+      if (devOverlayRef.current) {
+        devOverlayRef.current.style.display = 'block';
+      }
+    }
+  }, []);
+
   // Global keyboard shortcuts for R (restart), Space/Enter (start), Esc (pause), M (mute), and F3 (debug)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {

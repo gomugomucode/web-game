@@ -134,25 +134,6 @@ export function SettingsOverlay() {
             />
           </div>
 
-          {/* Music Volume */}
-          <div className="space-y-1.5">
-            <div className="flex justify-between text-xs font-medium">
-              <span className="text-slate-300">Music Volume</span>
-              <span className="font-mono text-teal-400 font-bold">
-                {Math.round(settings.musicVolume * 100)}%
-              </span>
-            </div>
-            <input
-              type="range"
-              min="0"
-              max="1"
-              step="0.05"
-              value={settings.musicVolume}
-              onChange={(e) => handleSliderChange('musicVolume', parseFloat(e.target.value))}
-              className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-teal-400"
-            />
-          </div>
-
           {/* Graphics Quality */}
           <div className="pt-2 border-t border-white/10 space-y-2">
             <div className="flex justify-between items-center">

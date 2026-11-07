@@ -437,3 +437,15 @@ class SoundManager {
 }
 
 export const soundManager = new SoundManager();
+
+if (typeof window !== 'undefined') {
+  const resumeOnGesture = () => {
+    soundManager.init();
+    window.removeEventListener('pointerdown', resumeOnGesture);
+    window.removeEventListener('keydown', resumeOnGesture);
+    window.removeEventListener('touchstart', resumeOnGesture);
+  };
+  window.addEventListener('pointerdown', resumeOnGesture, { passive: true });
+  window.addEventListener('keydown', resumeOnGesture, { passive: true });
+  window.addEventListener('touchstart', resumeOnGesture, { passive: true });
+}

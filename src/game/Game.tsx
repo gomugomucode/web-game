@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { Leva, useControls } from 'leva';
 import { GAME_CONSTANTS, DEFAULT_MOVEMENT_TUNABLES, MovementTunables } from './constants';
@@ -35,6 +35,34 @@ export function Game() {
   const isDebugMode =
     process.env.NODE_ENV !== 'production' ||
     (typeof window !== 'undefined' && window.location.search.includes('debug'));
+
+  // Auto-pause when window loses focus or tab becomes hidden during countdown or race
+  useEffect(() => {
+    function handleAutoPause() {
+      const store = useGameStore.getState();
+      if (
+        store.mode === 'race' &&
+        (store.phase === 'countdown' || store.phase === 'racing') &&
+        !store.isPaused
+      ) {
+        store.pause();
+      }
+    }
+
+    function handleVisibilityChange() {
+      if (document.hidden) {
+        handleAutoPause();
+      }
+    }
+
+    window.addEventListener('blur', handleAutoPause);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener('blur', handleAutoPause);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
 
   // Leva controls for live tuning of movement values
   const tunables = useControls('Movement Tunables', {

@@ -77,6 +77,7 @@
   - `Currents.tsx`: Early return freezes foam streak matrix updates.
   - `HubScene.tsx`: Early return freezes pond water shader and floating quest marker.
   - `CameraRig.tsx`: Early return freezes camera smoothing and lerping.
+- **Auto-Pause (Fix Pass)**: Automatically opens the pause menu when the browser window loses focus (`blur`) or the tab becomes hidden (`visibilitychange` with `document.hidden`) during a race or countdown. Never auto-resumes upon focus return; paused duration is completely deducted from timer calculations.
 - **Timer & Countdown Compensation**:
   - Store tracks `isPaused`, `pausedAt`, and `pauseOffset`.
   - While paused, elapsed race time and countdown are stationary:
@@ -88,7 +89,7 @@
 - **Controls**:
   - **Master Volume**: Linear gain scaler on master audio bus (0% to 100%).
   - **SFX & Ambience Volume**: Controls effects bus and ambient water noise level.
-  - **Music Volume**: Controls background music bus (ready for future tracks).
+  - **Music Volume**: Hidden from settings until music tracks exist, while keeping the stored `musicVolume` setting field in `otter-run:save`.
   - **Mute Toggle**: <kbd>M</kbd> key toggles audio mute at any time during gameplay.
   - **Graphics Quality**: High (standard DPR) vs Low (clamped DPR = 1.0 for high framerates on lower-spec hardware).
 
