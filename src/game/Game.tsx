@@ -14,15 +14,18 @@ import { Hazards } from './Hazards';
 import { Environment } from './Environment';
 import { CameraRig } from './CameraRig';
 import { HubScene } from './HubScene';
-import { river01 } from './tracks/river01';
+import { getTrack } from './tracks/registry';
 import { useGameStore } from './useGameStore';
 import { Hud } from '../ui/Hud';
 import { DialogueOverlay } from '../ui/DialogueOverlay';
+import { TrackSelectOverlay } from '../ui/TrackSelectOverlay';
 
 export function Game() {
   // Global keyboard input listener ref
   const inputRef = useKeyboardInput();
   const mode = useGameStore((state) => state.mode);
+  const activeTrackId = useGameStore((state) => state.activeTrackId);
+  const activeTrack = getTrack(activeTrackId);
 
   // Leva controls for live tuning of movement values
   const tunables = useControls('Movement Tunables', {
@@ -106,8 +109,11 @@ export function Game() {
       {/* High-performance Race & Hub HUD */}
       <Hud tunables={tunables} />
 
-      {/* Dialogue Overlay (Milestone 10) */}
+      {/* Dialogue Overlay (Milestone 10 & 11) */}
       <DialogueOverlay />
+
+      {/* Track Select Overlay (Milestone 11) */}
+      <TrackSelectOverlay />
 
       {/* 3D Scene Canvas */}
       <Canvas
@@ -128,21 +134,21 @@ export function Game() {
         {/* Genshin-style Valley Environment: sky, soft fog, warm sunlight, ground terrain, petals */}
         <Environment mode={mode} />
 
-        {/* Milestone 10: Hub Scene (pond, docks, scenery rocks, reeds, NPC Barnaby) */}
+        {/* Milestone 10: Hub Scene (pond, docks, scenery rocks, reeds, NPC Elder Moss) */}
         {mode === 'hub' && <HubScene />}
 
         {/* Race Track, Currents, Hazards, and Rivals (Active in Race mode only) */}
         {mode === 'race' && (
           <>
-            <River track={river01} />
-            <Currents track={river01} />
-            <Hazards track={river01} />
-            <Rivals />
+            <River track={activeTrack} />
+            <Currents track={activeTrack} />
+            <Hazards track={activeTrack} />
+            <Rivals track={activeTrack} />
           </>
         )}
 
         {/* Otter player model, physics and boundary collision */}
-        <Otter inputRef={inputRef} tunables={tunables} />
+        <Otter inputRef={inputRef} tunables={tunables} track={activeTrack} />
 
         {/* Milestone 9: Real-time renderer performance monitor (gl.info.render) */}
         <DevPerformanceMonitor />

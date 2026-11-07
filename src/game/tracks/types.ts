@@ -29,6 +29,8 @@ export interface Hazard {
 export interface Track {
   id: string;
   name: string;
+  description?: string;
+  unlockCondition?: string;
   centerline: Vec2[];
   smoothedCenterline?: Vec2[];
   halfWidth: number;

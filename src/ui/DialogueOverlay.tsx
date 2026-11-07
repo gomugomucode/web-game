@@ -1,12 +1,13 @@
 'use client';
 
-import React, { useEffect, useCallback } from 'react';
+import React, { useEffect, useCallback, useMemo } from 'react';
 import { useGameStore } from '../game/useGameStore';
-import { hubDialogue } from '../game/dialogue/hub';
+import { getActiveDialogue, DialogueChoice } from '../game/dialogue/hub';
 
 /**
- * DialogueOverlay Component (Milestone 10)
- * Data-driven dialogue UI and interaction prompt for NPC Barnaby.
+ * DialogueOverlay Component (Milestone 10 & 11)
+ * Data-driven dialogue UI and interaction prompt for mentor NPC Elder Moss.
+ * Displays progress-dependent dialogue branches and opens Track Select upon choosing 'Race now!'.
  * Rendered outside Canvas so dialogue advances never re-render the 3D scene.
  */
 export function DialogueOverlay() {
@@ -15,25 +16,33 @@ export function DialogueOverlay() {
   const dialogueIndex = useGameStore((state) => state.dialogueIndex);
   const selectedChoiceIndex = useGameStore((state) => state.selectedChoiceIndex);
   const isNearNpc = useGameStore((state) => state.isNearNpc);
+  const flags = useGameStore((state) => state.flags);
+  const unlockedTracks = useGameStore((state) => state.unlockedTracks);
 
   const openDialogue = useGameStore((state) => state.openDialogue);
   const advanceDialogue = useGameStore((state) => state.advanceDialogue);
   const selectChoice = useGameStore((state) => state.selectChoice);
   const closeDialogue = useGameStore((state) => state.closeDialogue);
-  const startRaceFromHub = useGameStore((state) => state.startRaceFromHub);
+  const openTrackSelect = useGameStore((state) => state.openTrackSelect);
 
-  const currentLine = hubDialogue[dialogueIndex];
+  // Data-driven dialogue sequence based on current progress & flags (Requirement 6)
+  const currentSequence = useMemo(
+    () => getActiveDialogue(flags, unlockedTracks),
+    [flags, unlockedTracks]
+  );
+
+  const currentLine = currentSequence[dialogueIndex];
   const hasChoices = currentLine && currentLine.choices && currentLine.choices.length > 0;
 
   const handleChoiceSelect = useCallback(
-    (action: 'race' | 'close') => {
-      if (action === 'race') {
-        startRaceFromHub();
+    (action: DialogueChoice['action']) => {
+      if (action === 'track_select') {
+        openTrackSelect();
       } else {
         closeDialogue();
       }
     },
-    [startRaceFromHub, closeDialogue]
+    [openTrackSelect, closeDialogue]
   );
 
   // Keyboard navigation for dialogue and interaction prompt
@@ -80,7 +89,7 @@ export function DialogueOverlay() {
           e.code === 'Space'
         ) {
           e.preventDefault();
-          if (dialogueIndex < hubDialogue.length - 1) {
+          if (dialogueIndex < currentSequence.length - 1) {
             advanceDialogue();
           } else {
             closeDialogue();
@@ -97,6 +106,7 @@ export function DialogueOverlay() {
     isNearNpc,
     hasChoices,
     currentLine,
+    currentSequence,
     dialogueIndex,
     selectedChoiceIndex,
     openDialogue,
@@ -121,7 +131,7 @@ export function DialogueOverlay() {
               E
             </span>
             <span className="font-semibold text-amber-200 tracking-wide text-base">
-              Talk with Barnaby
+              Talk with Elder Moss
             </span>
           </button>
         </div>
@@ -136,7 +146,7 @@ export function DialogueOverlay() {
               {currentLine.speaker}
             </span>
             <span className="text-xs text-slate-400 font-mono">
-              {dialogueIndex + 1} / {hubDialogue.length}
+              {dialogueIndex + 1} / {currentSequence.length}
             </span>
           </div>
 
@@ -150,7 +160,7 @@ export function DialogueOverlay() {
             <div className="pt-2 flex flex-col sm:flex-row gap-3">
               {currentLine.choices.map((choice, idx) => {
                 const isSelected = selectedChoiceIndex === idx;
-                const isRace = choice.action === 'race';
+                const isRace = choice.action === 'track_select';
                 return (
                   <button
                     key={idx}
@@ -186,7 +196,7 @@ export function DialogueOverlay() {
             <div className="flex justify-end pt-2 border-t border-white/10">
               <button
                 onClick={() => {
-                  if (dialogueIndex < hubDialogue.length - 1) {
+                  if (dialogueIndex < currentSequence.length - 1) {
                     advanceDialogue();
                   } else {
                     closeDialogue();
@@ -207,3 +217,4 @@ export function DialogueOverlay() {
   );
 }
 
+export default DialogueOverlay;

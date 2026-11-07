@@ -106,10 +106,10 @@ const mergedReedsGeo = (() => {
 })();
 
 /**
- * 3. Barnaby Character Model Geometries
+ * 3. Elder Moss Character Model Geometries (Milestone 11)
  * Low-poly elder mentor otter sitting on the dock with his fishing rod.
  */
-const barnabyBodyGeo = (() => {
+const elderMossBodyGeo = (() => {
   const parts: THREE.BufferGeometry[] = [];
 
   // Main body
@@ -143,8 +143,8 @@ const barnabyBodyGeo = (() => {
   return merged;
 })();
 
-// Barnaby's signature emerald mentor scarf
-const barnabyScarfGeo = (() => {
+// Elder Moss's distinctive moss-green mentor scarf (Milestone 11: distinct from rival Barnaby #059669)
+const elderMossScarfGeo = (() => {
   const scarf = new THREE.CylinderGeometry(0.39, 0.41, 0.25, 8);
   scarf.translate(0, 0.88, 0);
   return scarf;
@@ -271,21 +271,21 @@ export function HubScene() {
         />
       </mesh>
 
-      {/* 6. NPC Barnaby Figure on North Dock */}
+      {/* 6. NPC Elder Moss Figure on North Dock */}
       <group position={[GAME_CONSTANTS.HUB_NPC_POS[0], 0.48, GAME_CONSTANTS.HUB_NPC_POS[1]]}>
         {/* Main Body + Head + Snout + Fishing Rod */}
-        <mesh geometry={barnabyBodyGeo}>
+        <mesh geometry={elderMossBodyGeo}>
           <meshToonMaterial
             gradientMap={threeStepGradientMap}
             color="#8d5b34"
           />
         </mesh>
 
-        {/* Emerald Mentor Scarf */}
-        <mesh geometry={barnabyScarfGeo}>
+        {/* Moss Green Mentor Scarf (Milestone 11: distinct from Barnaby #059669) */}
+        <mesh geometry={elderMossScarfGeo}>
           <meshToonMaterial
             gradientMap={threeStepGradientMap}
-            color="#059669"
+            color="#84cc16"
           />
         </mesh>
 

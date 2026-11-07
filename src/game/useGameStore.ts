@@ -1,6 +1,11 @@
 import { create } from 'zustand';
-import { GAME_CONSTANTS } from './constants';
-import { river01 } from './tracks/river01';
+import { getTrack } from './tracks/registry';
+import {
+  loadSaveData,
+  saveTrackRecord,
+  updateDialogueFlags,
+  SaveFlags,
+} from './saveSystem';
 
 export type GameMode = 'hub' | 'race';
 export type RacePhase = 'idle' | 'countdown' | 'racing' | 'finished';
@@ -12,11 +17,17 @@ export interface GameStoreState {
   finishTime: number | null;
   bestTime: number | null;
   nextCheckpoint: number;
-  trackId: string;
+  activeTrackId: string;
   runId: number;
   playerRank: number;
 
-  // Dialogue state (Milestone 10)
+  // Progression & Save State (Milestone 11)
+  unlockedTracks: string[];
+  bestTimes: Record<string, number>;
+  flags: SaveFlags;
+  isTrackSelectOpen: boolean;
+
+  // Dialogue state (Milestone 10 & 11)
   isDialogueOpen: boolean;
   dialogueIndex: number;
   selectedChoiceIndex: number;
@@ -24,7 +35,10 @@ export interface GameStoreState {
 
   // Actions
   setMode: (mode: GameMode) => void;
-  startRaceFromHub: () => void;
+  selectTrack: (trackId: string) => void;
+  openTrackSelect: () => void;
+  closeTrackSelect: () => void;
+  startRaceFromHub: (trackId?: string) => void;
   returnToHub: () => void;
   openDialogue: () => void;
   advanceDialogue: () => void;
@@ -39,46 +53,27 @@ export interface GameStoreState {
   restart: () => void;
 }
 
-function getStorageKey(trackId: string): string {
-  return `${GAME_CONSTANTS.BEST_TIME_STORAGE_PREFIX}${trackId}`;
-}
-
-function loadStoredBestTime(trackId: string): number | null {
-  if (typeof window === 'undefined') return null;
-  try {
-    const raw = localStorage.getItem(getStorageKey(trackId));
-    if (raw) {
-      const parsed = parseFloat(raw);
-      if (!isNaN(parsed) && parsed > 0) {
-        return parsed;
-      }
-    }
-  } catch (err) {
-    console.warn('Failed to load best time from localStorage:', err);
-  }
-  return null;
-}
-
-function saveStoredBestTime(trackId: string, time: number): void {
-  if (typeof window === 'undefined') return;
-  try {
-    localStorage.setItem(getStorageKey(trackId), time.toString());
-  } catch (err) {
-    console.warn('Failed to save best time to localStorage:', err);
-  }
-}
+const initialSave = loadSaveData();
+const initialTrackId = 'river-01';
 
 export const useGameStore = create<GameStoreState>((set, get) => ({
-  mode: 'hub', // Game starts in 'hub' (Milestone 10 Requirement 1)
+  mode: 'hub', // Game starts in 'hub'
   phase: 'idle',
   raceStartTime: null,
   finishTime: null,
-  bestTime: loadStoredBestTime('river-01'),
+  bestTime: initialSave.bestTimes[initialTrackId] ?? null,
   nextCheckpoint: 0,
-  trackId: 'river-01',
+  activeTrackId: initialTrackId,
   runId: 0,
   playerRank: 1,
 
+  // Progression & Save Data
+  unlockedTracks: initialSave.unlockedTracks,
+  bestTimes: initialSave.bestTimes,
+  flags: initialSave.flags,
+  isTrackSelectOpen: false,
+
+  // Dialogue
   isDialogueOpen: false,
   dialogueIndex: 0,
   selectedChoiceIndex: 0,
@@ -86,19 +81,48 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
 
   setMode: (mode: GameMode) => set({ mode }),
 
-  startRaceFromHub: () =>
-    set((state) => ({
-      mode: 'race',
-      phase: 'idle',
-      raceStartTime: null,
-      finishTime: null,
+  selectTrack: (trackId: string) => {
+    const state = get();
+    const track = getTrack(trackId);
+    set({
+      activeTrackId: track.id,
+      bestTime: state.bestTimes[track.id] ?? null,
+      isTrackSelectOpen: false,
       nextCheckpoint: 0,
-      runId: state.runId + 1,
-      playerRank: 1,
+    });
+  },
+
+  openTrackSelect: () =>
+    set({
+      isTrackSelectOpen: true,
       isDialogueOpen: false,
-      dialogueIndex: 0,
-      selectedChoiceIndex: 0,
-    })),
+    }),
+
+  closeTrackSelect: () =>
+    set({
+      isTrackSelectOpen: false,
+    }),
+
+  startRaceFromHub: (targetTrackId?: string) =>
+    set((state) => {
+      const trackId = targetTrackId || state.activeTrackId;
+      const track = getTrack(trackId);
+      return {
+        mode: 'race',
+        phase: 'idle',
+        activeTrackId: track.id,
+        bestTime: state.bestTimes[track.id] ?? null,
+        raceStartTime: null,
+        finishTime: null,
+        nextCheckpoint: 0,
+        runId: state.runId + 1,
+        playerRank: 1,
+        isDialogueOpen: false,
+        isTrackSelectOpen: false,
+        dialogueIndex: 0,
+        selectedChoiceIndex: 0,
+      };
+    }),
 
   returnToHub: () =>
     set((state) => ({
@@ -109,16 +133,21 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
       nextCheckpoint: 0,
       runId: state.runId + 1,
       isDialogueOpen: false,
+      isTrackSelectOpen: false,
       dialogueIndex: 0,
       selectedChoiceIndex: 0,
     })),
 
-  openDialogue: () =>
+  openDialogue: () => {
+    // Record that player has met mentor
+    const updated = updateDialogueFlags({ met_mentor: true });
     set({
       isDialogueOpen: true,
       dialogueIndex: 0,
       selectedChoiceIndex: 0,
-    }),
+      flags: updated.flags,
+    });
+  },
 
   advanceDialogue: () =>
     set((state) => ({
@@ -166,19 +195,20 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
 
   finish: (time: number, rank = 1) => {
     const state = get();
-    const isNewBest = state.bestTime === null || time < state.bestTime;
-    const finalBest = isNewBest ? time : state.bestTime;
+    const track = getTrack(state.activeTrackId);
 
-    if (isNewBest) {
-      saveStoredBestTime(state.trackId, time);
-    }
+    // Save record to persistent storage and check progression unlock
+    const { data } = saveTrackRecord(state.activeTrackId, time, rank);
 
     set({
       phase: 'finished',
       finishTime: time,
-      bestTime: finalBest,
+      bestTime: data.bestTimes[state.activeTrackId] ?? time,
       playerRank: rank,
-      nextCheckpoint: river01.checkpoints.length,
+      nextCheckpoint: track.checkpoints.length,
+      unlockedTracks: data.unlockedTracks,
+      bestTimes: data.bestTimes,
+      flags: data.flags,
     });
   },
 
@@ -189,12 +219,13 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
       set((s) => ({
         runId: s.runId + 1,
         isDialogueOpen: false,
+        isTrackSelectOpen: false,
       }));
       return;
     }
 
     // In race, R restarts countdown
-    const currentBest = loadStoredBestTime(state.trackId);
+    const currentBest = state.bestTimes[state.activeTrackId] ?? null;
     set((s) => ({
       phase: 'countdown',
       raceStartTime: null,
@@ -202,7 +233,7 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
       nextCheckpoint: 0,
       runId: s.runId + 1,
       playerRank: 1,
-      bestTime: currentBest ?? state.bestTime,
+      bestTime: currentBest,
     }));
   },
 }));

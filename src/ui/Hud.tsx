@@ -4,6 +4,7 @@ import React, { useEffect, useRef } from 'react';
 import { MovementTunables } from '../game/constants';
 import { otterTelemetry } from '../game/telemetry';
 import { useGameStore } from '../game/useGameStore';
+import { getTrack } from '../game/tracks/registry';
 
 interface HudProps {
   tunables: MovementTunables;
@@ -31,9 +32,12 @@ export function Hud({ tunables }: HudProps) {
   const finishTime = useGameStore((state) => state.finishTime);
   const bestTime = useGameStore((state) => state.bestTime);
   const playerRank = useGameStore((state) => state.playerRank);
+  const activeTrackId = useGameStore((state) => state.activeTrackId);
   const restart = useGameStore((state) => state.restart);
   const startCountdown = useGameStore((state) => state.startCountdown);
   const returnToHub = useGameStore((state) => state.returnToHub);
+
+  const activeTrack = getTrack(activeTrackId);
 
   // High-frequency DOM references updated in rAF loop (zero React tree re-renders)
   const timerTextRef = useRef<HTMLSpanElement>(null);
@@ -188,7 +192,8 @@ export function Hud({ tunables }: HudProps) {
         }
 
         if (checkpointTextRef.current) {
-          checkpointTextRef.current.textContent = `${gameState.nextCheckpoint} / 4`;
+          const currentTrack = getTrack(useGameStore.getState().activeTrackId);
+          checkpointTextRef.current.textContent = `${gameState.nextCheckpoint} / ${currentTrack.checkpoints.length}`;
         }
 
         if (positionTextRef.current) {
@@ -286,7 +291,7 @@ export function Hud({ tunables }: HudProps) {
                 OTTER RUN
               </h1>
               <p className="text-xs text-emerald-400 font-medium">
-                {mode === 'hub' ? 'Otter Haven (Hub)' : 'Track 01: Calm Bend'}
+                {mode === 'hub' ? 'Otter Haven (Hub)' : activeTrack.name}
               </p>
             </div>
           </div>
@@ -335,7 +340,7 @@ export function Hud({ tunables }: HudProps) {
                   ref={checkpointTextRef}
                   className="text-2xl sm:text-3xl font-black font-mono text-sky-400"
                 >
-                  {nextCheckpoint} / 4
+                  {nextCheckpoint} / {activeTrack.checkpoints.length}
                 </span>
               </div>
             </div>
@@ -362,12 +367,12 @@ export function Hud({ tunables }: HudProps) {
                 <h2 className="text-3xl sm:text-4xl font-black tracking-wide bg-gradient-to-r from-sky-400 via-teal-300 to-emerald-400 bg-clip-text text-transparent">
                   OTTER RUN
                 </h2>
-                <p className="text-sm text-emerald-400 font-semibold mt-0.5">Track 01: Calm Bend</p>
+                <p className="text-sm text-emerald-400 font-semibold mt-0.5">{activeTrack.name}</p>
               </div>
             </div>
 
             <p className="text-sm text-slate-300 leading-relaxed max-w-md">
-              Navigate the winding river, glide through the checkpoint arches, and race for the best time!
+              {activeTrack.description || 'Navigate the winding river, glide through the checkpoint arches, and race for the best time!'}
             </p>
 
             <div className="w-full bg-slate-800/80 rounded-2xl p-4 border border-white/10 space-y-2 text-xs text-slate-300 text-left">
@@ -521,7 +526,7 @@ export function Hud({ tunables }: HudProps) {
               </div>
               <div className="flex items-center gap-2 text-emerald-300">
                 <kbd className="px-2 py-1 bg-emerald-950/80 rounded border border-emerald-500/50 font-mono text-emerald-300 font-bold">E</kbd>
-                <span>Talk with Barnaby</span>
+                <span>Talk with Elder Moss</span>
               </div>
               <div className="flex items-center gap-2 text-slate-400">
                 <kbd className="px-2 py-1 bg-slate-800 rounded border border-slate-700 font-mono text-slate-300">R</kbd>

@@ -25,6 +25,11 @@ export class RiverBoundary implements CollisionBoundary {
     this.maxAllowedDist = halfWidth - GAME_CONSTANTS.BOUNDARY_COLLISION_RADIUS;
   }
 
+  setTrack(centerline: [number, number][], halfWidth: number): void {
+    this.centerline = centerline;
+    this.maxAllowedDist = halfWidth - GAME_CONSTANTS.BOUNDARY_COLLISION_RADIUS;
+  }
+
   resolveCollision(pos: THREE.Vector3, v: THREE.Vector3): void {
     const nearest = findNearestPointOnPolyline(pos.x, pos.z, this.centerline);
 

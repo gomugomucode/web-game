@@ -79,6 +79,8 @@ const c2 = processCurrentData(
 export const river01: Track = {
   id: 'river-01',
   name: 'Calm Bend',
+  description: 'A winding scenic river with calm stretches, wide turns, and currents.',
+  unlockCondition: 'Default track (always unlocked)',
   centerline: rawCenterline,
   smoothedCenterline: river01SmoothedCenterline,
   halfWidth: 9,

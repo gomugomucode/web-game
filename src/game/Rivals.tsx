@@ -4,127 +4,19 @@ import React, { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { GAME_CONSTANTS } from './constants';
-import { river01, river01SmoothedCenterline } from './tracks/river01';
+import { getTrack, getTrackMetadata, TrackMetadata } from './tracks/registry';
+import { Track } from './tracks/types';
 import { useGameStore } from './useGameStore';
 import { sharedOtterRefs } from './sharedRefs';
 import { otterTelemetry } from './telemetry';
 import { threeStepGradientMap } from './toonGradient';
 import { findNearestPointOnPolyline } from './math';
 
-// Precompute cumulative track distances once at module load
-const centerlineCumDist: number[] = [0];
-for (let i = 1; i < river01SmoothedCenterline.length; i++) {
-  const dx = river01SmoothedCenterline[i][0] - river01SmoothedCenterline[i - 1][0];
-  const dz = river01SmoothedCenterline[i][1] - river01SmoothedCenterline[i - 1][1];
-  centerlineCumDist.push(centerlineCumDist[i - 1] + Math.hypot(dx, dz));
-}
-const totalTrackLength = centerlineCumDist[centerlineCumDist.length - 1];
-
-// Find exact track distance of start line ([0, 2]) and finish line ([124, 5])
-function findTrackDistance(targetX: number, targetZ: number): number {
-  let bestDist = Infinity;
-  let bestS = 0;
-  for (let i = 0; i < river01SmoothedCenterline.length - 1; i++) {
-    const pA = river01SmoothedCenterline[i];
-    const pB = river01SmoothedCenterline[i + 1];
-    const dx = pB[0] - pA[0];
-    const dz = pB[1] - pA[1];
-    const segLen2 = dx * dx + dz * dz;
-    if (segLen2 < 1e-6) continue;
-    const t = Math.max(0, Math.min(1, ((targetX - pA[0]) * dx + (targetZ - pA[1]) * dz) / segLen2));
-    const px = pA[0] + t * dx;
-    const pz = pA[1] + t * dz;
-    const d = Math.hypot(targetX - px, targetZ - pz);
-    if (d < bestDist) {
-      bestDist = d;
-      bestS = centerlineCumDist[i] + t * Math.sqrt(segLen2);
-    }
-  }
-  return bestS;
-}
-
-const START_TRACK_DISTANCE = findTrackDistance(river01.start.pos[0], river01.start.pos[1]);
-const finishCp = river01.checkpoints[river01.checkpoints.length - 1];
-const FINISH_TRACK_DISTANCE = findTrackDistance(finishCp.pos[0], finishCp.pos[1]);
-
-// Precompute hazards track distances and lateral offsets once
-interface TrackHazardCoord {
-  s: number;
-  lateral: number;
-  radius: number;
-}
-
-const hazardCoords: TrackHazardCoord[] = river01.hazards.map((h) => {
-  let bestDist = Infinity;
-  let bestS = 0;
-  let bestLat = 0;
-  for (let i = 0; i < river01SmoothedCenterline.length - 1; i++) {
-    const pA = river01SmoothedCenterline[i];
-    const pB = river01SmoothedCenterline[i + 1];
-    const dx = pB[0] - pA[0];
-    const dz = pB[1] - pA[1];
-    const segLen2 = dx * dx + dz * dz;
-    if (segLen2 < 1e-6) continue;
-    const segLen = Math.sqrt(segLen2);
-    const t = Math.max(0, Math.min(1, ((h.pos[0] - pA[0]) * dx + (h.pos[1] - pA[1]) * dz) / segLen2));
-    const px = pA[0] + t * dx;
-    const pz = pA[1] + t * dz;
-    const d = Math.hypot(h.pos[0] - px, h.pos[1] - pz);
-    if (d < bestDist) {
-      bestDist = d;
-      bestS = centerlineCumDist[i] + t * segLen;
-      const nx = -dz / segLen;
-      const nz = dx / segLen;
-      bestLat = (h.pos[0] - px) * nx + (h.pos[1] - pz) * nz;
-    }
-  }
-  return { s: bestS, lateral: bestLat, radius: h.radius };
-});
-
 // Reusable scratch registers for zero-allocation useFrame loop
 const scratchPos = new THREE.Vector3();
 const scratchTangent = new THREE.Vector3();
 const scratchNormal = new THREE.Vector3();
 const scratchDir = new THREE.Vector3();
-
-function sampleTrack(
-  s: number,
-  outPos: THREE.Vector3,
-  outTangent: THREE.Vector3,
-  outNormal: THREE.Vector3
-) {
-  const sClamped = Math.max(0, Math.min(totalTrackLength, s));
-  let low = 0;
-  let high = centerlineCumDist.length - 1;
-  while (low <= high) {
-    const mid = (low + high) >> 1;
-    if (centerlineCumDist[mid] <= sClamped) {
-      low = mid + 1;
-    } else {
-      high = mid - 1;
-    }
-  }
-  const idx = Math.max(0, Math.min(river01SmoothedCenterline.length - 2, high));
-  const d0 = centerlineCumDist[idx];
-  const d1 = centerlineCumDist[idx + 1];
-  const segLen = d1 - d0;
-  const t = segLen < 1e-5 ? 0 : (sClamped - d0) / segLen;
-
-  const pA = river01SmoothedCenterline[idx];
-  const pB = river01SmoothedCenterline[idx + 1];
-
-  const dx = pB[0] - pA[0];
-  const dz = pB[1] - pA[1];
-  const invLen = segLen < 1e-5 ? 1 : 1 / segLen;
-
-  outPos.set(
-    pA[0] + t * dx,
-    GAME_CONSTANTS.WATER_SURFACE_Y,
-    pA[1] + t * dz
-  );
-  outTangent.set(dx * invLen, 0, dz * invLen);
-  outNormal.set(-dz * invLen, 0, dx * invLen);
-}
 
 interface RivalState {
   id: string;
@@ -142,8 +34,13 @@ interface RivalState {
   bobPhase: number;
 }
 
-export function Rivals() {
+interface RivalsProps {
+  track?: Track;
+}
+
+export function Rivals({ track }: RivalsProps) {
   const lastRunIdRef = useRef(useGameStore.getState().runId);
+  const lastTrackIdRef = useRef(useGameStore.getState().activeTrackId);
 
   // References to rival groups for direct matrix/transform updates
   const groupRefs = useRef<(THREE.Group | null)[]>([null, null, null]);
@@ -160,11 +57,15 @@ export function Rivals() {
     return { body, snout };
   }, []);
 
+  const initialTrack = track || getTrack(useGameStore.getState().activeTrackId);
+  const initialMeta = getTrackMetadata(initialTrack);
+  const trackMetaRef = useRef<TrackMetadata>(initialMeta);
+
   // Initialize deterministic rival state structures once in a mutable ref
   const rivalsRef = useRef<RivalState[]>(
     GAME_CONSTANTS.RIVAL_PROFILES.map((profile, idx) => {
-      const initialS = START_TRACK_DISTANCE + profile.staggerZ;
-      sampleTrack(initialS, scratchPos, scratchTangent, scratchNormal);
+      const initialS = initialMeta.startTrackDistance + profile.staggerZ;
+      initialMeta.sampleTrack(initialS, scratchPos, scratchTangent, scratchNormal);
       const startX = scratchPos.x + scratchNormal.x * profile.lane;
       const startZ = scratchPos.z + scratchNormal.z * profile.lane;
       const startHeading = Math.atan2(scratchTangent.x, scratchTangent.z);
@@ -197,13 +98,22 @@ export function Rivals() {
     const profiles = GAME_CONSTANTS.RIVAL_PROFILES;
     const playerCruiseSpeed = GAME_CONSTANTS.ACCEL / GAME_CONSTANTS.DRAG; // ~11.11 m/s
 
-    // 2. Deterministic Reset on runId change (Requirement 5)
+    const currentTrack = track || getTrack(gameState.activeTrackId);
+
+    // Update track metadata cache reference when track changes
+    if (gameState.activeTrackId !== lastTrackIdRef.current) {
+      lastTrackIdRef.current = gameState.activeTrackId;
+      trackMetaRef.current = getTrackMetadata(currentTrack);
+    }
+    const meta = trackMetaRef.current;
+
+    // Deterministic Reset on runId or track change (Requirement 2 & 5)
     if (gameState.runId !== lastRunIdRef.current) {
       lastRunIdRef.current = gameState.runId;
       for (let i = 0; i < rivals.length; i++) {
         const r = rivals[i];
         const profile = profiles[i];
-        r.s = START_TRACK_DISTANCE + profile.staggerZ;
+        r.s = meta.startTrackDistance + profile.staggerZ;
         r.speed = 0;
         r.targetSpeed = 0;
         r.lane = profile.lane;
@@ -212,7 +122,7 @@ export function Rivals() {
         r.roll = 0;
         r.bobPhase = i * 2.0;
 
-        sampleTrack(r.s, scratchPos, scratchTangent, scratchNormal);
+        meta.sampleTrack(r.s, scratchPos, scratchTangent, scratchNormal);
         r.pos.set(
           scratchPos.x + scratchNormal.x * profile.lane,
           GAME_CONSTANTS.WATER_SURFACE_Y,
@@ -229,7 +139,7 @@ export function Rivals() {
       }
     }
 
-    // 3. Movement and Steering
+    // Movement and Steering
     for (let i = 0; i < rivals.length; i++) {
       const r = rivals[i];
       const profile = profiles[i];
@@ -247,9 +157,9 @@ export function Rivals() {
         // Smooth sinusoidal speed variation along track
         baseSpeed += Math.sin(r.s * 0.04 + i * 1.5) * 0.45;
 
-        // Check if rival is inside a current zone (same rule as player)
-        for (let c = 0; c < river01.currents.length; c++) {
-          const cur = river01.currents[c];
+        // Check if rival is inside a current zone (same rule as player, read from active track)
+        for (let c = 0; c < currentTrack.currents.length; c++) {
+          const cur = currentTrack.currents[c];
           const curPoints = cur.smoothedPoints ?? cur.points;
           const cRes = findNearestPointOnPolyline(r.pos.x, r.pos.z, curPoints);
           if (cRes.distance < cur.width) {
@@ -272,7 +182,7 @@ export function Rivals() {
           r.s += r.speed * dt;
 
           // Check if rival crossed finish line
-          if (r.s >= FINISH_TRACK_DISTANCE) {
+          if (r.s >= meta.finishTrackDistance) {
             r.finished = true;
             if (r.finishTime === null && gameState.raceStartTime !== null) {
               r.finishTime = performance.now() - gameState.raceStartTime;
@@ -288,7 +198,8 @@ export function Rivals() {
         // 1. Natural slow lane undulation along track
         let desiredLane = profile.lane + Math.sin(r.s * profile.waveFreq + i * 1.8) * profile.waveAmp;
 
-        // 2. Smoothly steer around hazard rocks with lane offsets (Requirement 2)
+        // 2. Smoothly steer around hazard rocks with lane offsets (Read dynamically from active track data)
+        const hazardCoords = meta.hazardCoords;
         for (let h = 0; h < hazardCoords.length; h++) {
           const haz = hazardCoords[h];
           const ds = r.s - haz.s;
@@ -312,7 +223,7 @@ export function Rivals() {
         r.lane += (desiredLane - r.lane) * Math.min(1, dt * 3.0);
 
         // Sample track at new distance and apply lateral offset
-        sampleTrack(r.s, scratchPos, scratchTangent, scratchNormal);
+        meta.sampleTrack(r.s, scratchPos, scratchTangent, scratchNormal);
         r.pos.x = scratchPos.x + scratchNormal.x * r.lane;
         r.pos.z = scratchPos.z + scratchNormal.z * r.lane;
 
@@ -335,7 +246,7 @@ export function Rivals() {
         }
       }
 
-      // 4. Soft visual separation from player (never blocks race) (Requirement 1)
+      // Soft visual separation from player (never blocks race)
       const pPos = sharedOtterRefs.position;
       const dxP = r.pos.x - pPos.x;
       const dzP = r.pos.z - pPos.z;
@@ -356,19 +267,19 @@ export function Rivals() {
       }
     }
 
-    // 5. Compute Live Player Position / Leaderboard Rank (Requirement 4)
-    // Project player position onto centerline to get arc length
+    // 5. Compute Live Player Position / Leaderboard Rank
+    // Project player position onto active track smoothed centerline
     const pPos = sharedOtterRefs.position;
-    const playerProj = findNearestPointOnPolyline(pPos.x, pPos.z, river01SmoothedCenterline);
-    const segIdx = Math.max(0, Math.min(river01SmoothedCenterline.length - 2, playerProj.segmentIndex));
-    const pSegA = river01SmoothedCenterline[segIdx];
-    const pSegB = river01SmoothedCenterline[segIdx + 1];
+    const playerProj = findNearestPointOnPolyline(pPos.x, pPos.z, meta.smoothedCenterline);
+    const segIdx = Math.max(0, Math.min(meta.smoothedCenterline.length - 2, playerProj.segmentIndex));
+    const pSegA = meta.smoothedCenterline[segIdx];
+    const pSegB = meta.smoothedCenterline[segIdx + 1];
     const segDx = pSegB[0] - pSegA[0];
     const segDz = pSegB[1] - pSegA[1];
     const segLenSq = segDx * segDx + segDz * segDz;
     const segLen = Math.sqrt(segLenSq);
     const projT = segLenSq < 1e-6 ? 0 : Math.max(0, Math.min(1, ((playerProj.point[0] - pSegA[0]) * segDx + (playerProj.point[1] - pSegA[1]) * segDz) / segLenSq));
-    const playerTrackS = centerlineCumDist[segIdx] + projT * segLen;
+    const playerTrackS = meta.centerlineCumDist[segIdx] + projT * segLen;
 
     const playerFinished = gameState.phase === 'finished';
     const playerTime = gameState.finishTime;

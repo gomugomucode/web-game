@@ -8,7 +8,8 @@ import { InputState } from './input';
 import { otterTelemetry } from './telemetry';
 import { sharedOtterRefs } from './sharedRefs';
 import { findNearestPointOnPolyline } from './math';
-import { river01 } from './tracks/river01';
+import { getTrack } from './tracks/registry';
+import { Track } from './tracks/types';
 import { useGameStore } from './useGameStore';
 import { threeStepGradientMap } from './toonGradient';
 import { RiverBoundary, HubBoundary, HUB_OBSTACLES } from './boundaries';
@@ -16,14 +17,16 @@ import { RiverBoundary, HubBoundary, HUB_OBSTACLES } from './boundaries';
 interface OtterProps {
   inputRef: React.RefObject<InputState>;
   tunables: MovementTunables;
+  track?: Track;
 }
 
 const clamp = (val: number, min: number, max: number) => Math.min(Math.max(val, min), max);
 
-// Pre-allocated collision boundaries implementing the common CollisionBoundary interface (Milestone 10)
+// Pre-allocated collision boundaries implementing the common CollisionBoundary interface (Milestone 10 & 11)
+const initialActiveTrack = getTrack(useGameStore.getState().activeTrackId);
 const riverBoundary = new RiverBoundary(
-  river01.smoothedCenterline ?? river01.centerline,
-  river01.halfWidth
+  initialActiveTrack.smoothedCenterline ?? initialActiveTrack.centerline,
+  initialActiveTrack.halfWidth
 );
 
 const hubBoundary = new HubBoundary(
@@ -33,11 +36,12 @@ const hubBoundary = new HubBoundary(
   HUB_OBSTACLES
 );
 
-export function Otter({ inputRef, tunables }: OtterProps) {
+export function Otter({ inputRef, tunables, track }: OtterProps) {
   // Start otter at hub spawn position or track start position
   const initialMode = useGameStore.getState().mode;
-  const initialSpawn = initialMode === 'hub' ? GAME_CONSTANTS.HUB_SPAWN_POS : river01.start.pos;
-  const initialHeading = initialMode === 'hub' ? GAME_CONSTANTS.HUB_SPAWN_HEADING : river01.start.heading;
+  const currentInitialTrack = track || getTrack(useGameStore.getState().activeTrackId);
+  const initialSpawn = initialMode === 'hub' ? GAME_CONSTANTS.HUB_SPAWN_POS : currentInitialTrack.start.pos;
+  const initialHeading = initialMode === 'hub' ? GAME_CONSTANTS.HUB_SPAWN_HEADING : currentInitialTrack.start.heading;
 
   const posRef = useRef(
     new THREE.Vector3(
@@ -59,6 +63,7 @@ export function Otter({ inputRef, tunables }: OtterProps) {
   const currentRollRef = useRef(0);
   const bobPhaseRef = useRef(0);
   const lastRunIdRef = useRef(useGameStore.getState().runId);
+  const lastTrackIdRef = useRef(useGameStore.getState().activeTrackId);
   const prevRestartRef = useRef(false);
 
   // Object3D container references
@@ -80,12 +85,22 @@ export function Otter({ inputRef, tunables }: OtterProps) {
     const gameState = useGameStore.getState();
     const mode = gameState.mode;
     const phase = gameState.phase;
+    const currentTrack = track || getTrack(gameState.activeTrackId);
 
-    // Detect a runId change at the top of useFrame and reset to spawn (Milestone 10)
+    // Update boundary when track changes
+    if (gameState.activeTrackId !== lastTrackIdRef.current) {
+      lastTrackIdRef.current = gameState.activeTrackId;
+      riverBoundary.setTrack(
+        currentTrack.smoothedCenterline ?? currentTrack.centerline,
+        currentTrack.halfWidth
+      );
+    }
+
+    // Detect a runId change at the top of useFrame and reset to spawn (Milestone 10 & 11)
     if (gameState.runId !== lastRunIdRef.current) {
       lastRunIdRef.current = gameState.runId;
-      const spawnPos = mode === 'hub' ? GAME_CONSTANTS.HUB_SPAWN_POS : river01.start.pos;
-      const spawnHeading = mode === 'hub' ? GAME_CONSTANTS.HUB_SPAWN_HEADING : river01.start.heading;
+      const spawnPos = mode === 'hub' ? GAME_CONSTANTS.HUB_SPAWN_POS : currentTrack.start.pos;
+      const spawnHeading = mode === 'hub' ? GAME_CONSTANTS.HUB_SPAWN_HEADING : currentTrack.start.heading;
 
       pos.set(
         spawnPos[0],
@@ -251,7 +266,7 @@ export function Otter({ inputRef, tunables }: OtterProps) {
     // 9.5 River Currents Acceleration (Milestone 5, Task A - Race mode only)
     let inAnyCurrent = false;
     if (mode === 'race' && (phase === 'racing' || phase === 'finished')) {
-      const currentList = river01.currents;
+      const currentList = currentTrack.currents;
       const strengthScale = tunables.currentStrength / GAME_CONSTANTS.CURRENT_STRENGTH;
       for (let i = 0; i < currentList.length; i++) {
         const cur = currentList[i];
@@ -296,7 +311,7 @@ export function Otter({ inputRef, tunables }: OtterProps) {
 
     // 11.5 Hazard Rocks Collision (Milestone 7, Task B - Race mode only)
     if (mode === 'race') {
-      const hazards = river01.hazards;
+      const hazards = currentTrack.hazards;
       const otterRad = GAME_CONSTANTS.OTTER_RADIUS;
       for (let i = 0; i < hazards.length; i++) {
         const rock = hazards[i];
@@ -339,15 +354,15 @@ export function Otter({ inputRef, tunables }: OtterProps) {
     // Only checked in order using squared-distance checks (zero allocations in useFrame)
     if (mode === 'race' && phase === 'racing') {
       const currentCpIndex = gameState.nextCheckpoint;
-      if (currentCpIndex < river01.checkpoints.length) {
-        const cp = river01.checkpoints[currentCpIndex];
+      if (currentCpIndex < currentTrack.checkpoints.length) {
+        const cp = currentTrack.checkpoints[currentCpIndex];
         const dx = pos.x - cp.pos[0];
         const dz = pos.z - cp.pos[1];
         const distSq = dx * dx + dz * dz;
         const radiusSq = cp.radius * cp.radius;
 
         if (distSq <= radiusSq) {
-          if (currentCpIndex === river01.checkpoints.length - 1) {
+          if (currentCpIndex === currentTrack.checkpoints.length - 1) {
             // Crossed the final checkpoint (Finish line)
             const finishTimestamp = performance.now();
             const totalElapsed = gameState.raceStartTime
