@@ -216,10 +216,12 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
 
   openDialogue: () => {
     soundManager.playDialogueBlip();
+    const state = get();
+    const wasMet = state.flags.met_mentor;
     const updated = updateDialogueFlags({ met_mentor: true });
     set({
       isDialogueOpen: true,
-      activeDialogueSceneId: null,
+      activeDialogueSceneId: wasMet ? null : 'scene_a',
       dialogueIndex: 0,
       selectedChoiceIndex: 0,
       flags: updated.flags,
