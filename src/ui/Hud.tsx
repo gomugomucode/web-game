@@ -6,6 +6,7 @@ import { otterTelemetry } from '../game/telemetry';
 import { useGameStore } from '../game/useGameStore';
 import { getTrack } from '../game/tracks/registry';
 import { soundManager } from '../game/audio/soundManager';
+import { getRivalReadyLine, getResultDialogue } from '../game/dialogue/storyData';
 
 interface HudProps {
   tunables: MovementTunables;
@@ -38,7 +39,14 @@ export function Hud({ tunables }: HudProps) {
   const startCountdown = useGameStore((state) => state.startCountdown);
   const returnToHub = useGameStore((state) => state.returnToHub);
 
+  const readyRivalIndex = useGameStore((state) => state.readyRivalIndex);
+  const secondPlaceRivalId = useGameStore((state) => state.secondPlaceRivalId);
+  const winningRivalId = useGameStore((state) => state.winningRivalId);
+  const unlockBanner = useGameStore((state) => state.unlockBanner);
+
   const activeTrack = getTrack(activeTrackId);
+  const readyRivalLine = getRivalReadyLine(activeTrackId, readyRivalIndex);
+  const resultQuote = getResultDialogue(playerRank, secondPlaceRivalId, winningRivalId);
 
   // High-frequency DOM references updated in rAF loop (zero React tree re-renders)
   const timerTextRef = useRef<HTMLSpanElement>(null);
@@ -464,6 +472,28 @@ export function Hud({ tunables }: HudProps) {
               {activeTrack.description || 'Navigate the winding river, glide through the checkpoint arches, and race for the best time!'}
             </p>
 
+            {/* Rival Pre-Race Dialogue Banner (Section 7) */}
+            {readyRivalLine && (
+              <div
+                className="w-full bg-slate-800/90 rounded-2xl p-3.5 border flex items-center gap-3 text-left shadow-md"
+                style={{ borderColor: `${readyRivalLine.color}50` }}
+              >
+                <span
+                  className="font-bold text-xs uppercase tracking-wider px-2.5 py-1 rounded-full shrink-0"
+                  style={{
+                    backgroundColor: `${readyRivalLine.color}25`,
+                    color: readyRivalLine.color,
+                    border: `1px solid ${readyRivalLine.color}60`,
+                  }}
+                >
+                  {readyRivalLine.speaker}
+                </span>
+                <p className="text-xs text-slate-200 italic leading-relaxed">
+                  &ldquo;{readyRivalLine.text}&rdquo;
+                </p>
+              </div>
+            )}
+
             <div className="w-full bg-slate-800/80 rounded-2xl p-4 border border-white/10 space-y-2 text-xs text-slate-300 text-left">
               <div className="font-bold text-sky-400 uppercase tracking-wider text-[11px] mb-2">Controls Overview</div>
               <div className="flex justify-between">
@@ -521,6 +551,36 @@ export function Hud({ tunables }: HudProps) {
             {isNewBest && (
               <div className="px-4 py-1.5 bg-gradient-to-r from-emerald-500 to-teal-400 text-slate-950 font-black text-xs uppercase tracking-widest rounded-full shadow-lg">
                 ★ NEW BEST TIME! ★
+              </div>
+            )}
+
+            {/* Results Dialogue Quote from Rival or Mentor (Section 8) */}
+            {resultQuote && (
+              <div
+                className="w-full bg-slate-800/90 rounded-2xl p-3.5 border flex items-start gap-3 text-left shadow-md"
+                style={{ borderColor: `${resultQuote.speakerColor}50` }}
+              >
+                <span
+                  className="font-bold text-xs uppercase tracking-wider px-2.5 py-1 rounded-full shrink-0 mt-0.5"
+                  style={{
+                    backgroundColor: `${resultQuote.speakerColor}25`,
+                    color: resultQuote.speakerColor,
+                    border: `1px solid ${resultQuote.speakerColor}60`,
+                  }}
+                >
+                  {resultQuote.speaker}
+                </span>
+                <p className="text-xs text-slate-200 italic leading-relaxed">
+                  &ldquo;{resultQuote.text}&rdquo;
+                </p>
+              </div>
+            )}
+
+            {/* Unlock Banner (Section 8) */}
+            {unlockBanner && (
+              <div className="w-full py-2.5 px-4 bg-gradient-to-r from-amber-500/20 via-sky-500/20 to-emerald-500/20 border border-amber-400/50 rounded-2xl text-amber-300 font-bold text-xs uppercase tracking-wider shadow-lg flex items-center justify-center gap-2 animate-pulse">
+                <span>✨</span>
+                <span>{unlockBanner}</span>
               </div>
             )}
 

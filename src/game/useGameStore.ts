@@ -8,6 +8,7 @@ import {
   SaveFlags,
   GameSettings,
 } from './saveSystem';
+import { UNLOCK_BANNERS } from './dialogue/storyData';
 import { soundManager } from './audio/soundManager';
 
 export type GameMode = 'hub' | 'race';
@@ -37,15 +38,23 @@ export interface GameStoreState {
   isSettingsOpen: boolean;
   settings: GameSettings;
 
-  // Dialogue state (Milestone 10 & 11)
+  // Dialogue state (Milestone 10 & 11 & 13)
   isDialogueOpen: boolean;
   dialogueIndex: number;
   selectedChoiceIndex: number;
   isNearNpc: boolean;
+  activeDialogueSceneId: string | null;
+
+  // Story & Rival State (Milestone 13)
+  readyRivalIndex: number;
+  secondPlaceRivalId: string | null;
+  winningRivalId: string | null;
+  unlockBanner: string | null;
 
   // Actions
   setMode: (mode: GameMode) => void;
   selectTrack: (trackId: string) => void;
+  setRivalStandings: (secondPlaceId: string | null, winningId: string | null) => void;
   openTrackSelect: () => void;
   closeTrackSelect: () => void;
   startRaceFromHub: (trackId?: string) => void;
@@ -103,6 +112,13 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
   dialogueIndex: 0,
   selectedChoiceIndex: 0,
   isNearNpc: false,
+  activeDialogueSceneId: null,
+
+  // Story & Rival State (Milestone 13)
+  readyRivalIndex: 0,
+  secondPlaceRivalId: null,
+  winningRivalId: null,
+  unlockBanner: null,
 
   setMode: (mode: GameMode) => set({ mode }),
 
@@ -115,6 +131,13 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
       bestTime: state.bestTimes[track.id] ?? null,
       isTrackSelectOpen: false,
       nextCheckpoint: 0,
+    });
+  },
+
+  setRivalStandings: (secondPlaceId: string | null, winningId: string | null) => {
+    set({
+      secondPlaceRivalId: secondPlaceId,
+      winningRivalId: winningId,
     });
   },
 
@@ -148,8 +171,13 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
         finishTime: null,
         nextCheckpoint: 0,
         runId: state.runId + 1,
+        readyRivalIndex: state.runId % 3,
+        secondPlaceRivalId: null,
+        winningRivalId: null,
+        unlockBanner: null,
         playerRank: 1,
         isDialogueOpen: false,
+        activeDialogueSceneId: null,
         isTrackSelectOpen: false,
         isPaused: false,
         pausedAt: null,
@@ -170,7 +198,12 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
       finishTime: null,
       nextCheckpoint: 0,
       runId: state.runId + 1,
+      readyRivalIndex: 0,
+      secondPlaceRivalId: null,
+      winningRivalId: null,
+      unlockBanner: null,
       isDialogueOpen: false,
+      activeDialogueSceneId: null,
       isTrackSelectOpen: false,
       isPaused: false,
       pausedAt: null,
@@ -186,6 +219,7 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
     const updated = updateDialogueFlags({ met_mentor: true });
     set({
       isDialogueOpen: true,
+      activeDialogueSceneId: null,
       dialogueIndex: 0,
       selectedChoiceIndex: 0,
       flags: updated.flags,
@@ -212,6 +246,7 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
     soundManager.playUiClick();
     set({
       isDialogueOpen: false,
+      activeDialogueSceneId: null,
       dialogueIndex: 0,
       selectedChoiceIndex: 0,
     });
@@ -324,7 +359,17 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
     const track = getTrack(state.activeTrackId);
 
     // Save record to persistent storage and check progression unlock
-    const { data } = saveTrackRecord(state.activeTrackId, time, rank);
+    const { data, unlockedRiver02, unlockedRiver03, justCompletedRiver02Top3 } =
+      saveTrackRecord(state.activeTrackId, time, rank);
+
+    let unlockBanner: string | null = null;
+    if (unlockedRiver02) {
+      unlockBanner = UNLOCK_BANNERS.river02Unlocked;
+    } else if (unlockedRiver03) {
+      unlockBanner = UNLOCK_BANNERS.river03Unlocked;
+    }
+
+    const showWisp = justCompletedRiver02Top3;
 
     set({
       phase: 'finished',
@@ -335,6 +380,11 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
       unlockedTracks: data.unlockedTracks,
       bestTimes: data.bestTimes,
       flags: data.flags,
+      unlockBanner,
+      isDialogueOpen: showWisp,
+      activeDialogueSceneId: showWisp ? 'wisp_whisper' : null,
+      dialogueIndex: 0,
+      selectedChoiceIndex: 0,
       isPaused: false,
       pausedAt: null,
     });
@@ -348,6 +398,7 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
       set((s) => ({
         runId: s.runId + 1,
         isDialogueOpen: false,
+        activeDialogueSceneId: null,
         isTrackSelectOpen: false,
         isPaused: false,
         pausedAt: null,
@@ -357,7 +408,7 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
       return;
     }
 
-    // In race, R restarts countdown
+    // In race, R restarts countdown while preserving readyRivalIndex
     const currentBest = state.bestTimes[state.activeTrackId] ?? null;
     set((s) => ({
       phase: 'countdown',
@@ -367,6 +418,11 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
       runId: s.runId + 1,
       playerRank: 1,
       bestTime: currentBest,
+      secondPlaceRivalId: null,
+      winningRivalId: null,
+      unlockBanner: null,
+      isDialogueOpen: false,
+      activeDialogueSceneId: null,
       isPaused: false,
       pausedAt: null,
       pauseOffset: 0,

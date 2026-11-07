@@ -306,9 +306,47 @@ export function Rivals({ track }: RivalsProps) {
       }
     }
 
-    otterTelemetry.playerRank = rank;
-    if (playerFinished && gameState.playerRank !== rank) {
-      useGameStore.setState({ playerRank: rank });
+    // Zero-allocation identification of top-performing rival for results dialogue
+    let bestRivalIdx = 0;
+    for (let i = 1; i < rivals.length; i++) {
+      const a = rivals[bestRivalIdx];
+      const b = rivals[i];
+      let bIsBetter = false;
+      if (b.finished && a.finished) {
+        bIsBetter = (b.finishTime ?? Infinity) < (a.finishTime ?? Infinity);
+      } else if (b.finished) {
+        bIsBetter = true;
+      } else if (!a.finished) {
+        bIsBetter = b.s > a.s;
+      }
+      if (bIsBetter) {
+        bestRivalIdx = i;
+      }
+    }
+    const leaderRivalId = rivals[bestRivalIdx]?.id ?? null;
+
+    if (gameState.phase === 'racing') {
+      otterTelemetry.playerRank = rank;
+      if (
+        gameState.winningRivalId !== leaderRivalId ||
+        gameState.secondPlaceRivalId !== leaderRivalId
+      ) {
+        useGameStore.setState({
+          winningRivalId: leaderRivalId,
+          secondPlaceRivalId: leaderRivalId,
+        });
+      }
+    } else if (playerFinished) {
+      otterTelemetry.playerRank = gameState.playerRank;
+      if (
+        gameState.winningRivalId !== leaderRivalId ||
+        gameState.secondPlaceRivalId !== leaderRivalId
+      ) {
+        useGameStore.setState({
+          winningRivalId: leaderRivalId,
+          secondPlaceRivalId: leaderRivalId,
+        });
+      }
     }
   });
 

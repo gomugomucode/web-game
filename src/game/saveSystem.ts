@@ -6,6 +6,9 @@ export interface SaveFlags {
   met_mentor: boolean;
   first_race_done: boolean;
   river02_unlocked: boolean;
+  river02_done: boolean;
+  river03_unlocked: boolean;
+  story_complete?: boolean;
 }
 
 export interface GameSettings {
@@ -40,6 +43,8 @@ export const DEFAULT_SAVE_DATA: Readonly<SaveData> = {
     met_mentor: false,
     first_race_done: false,
     river02_unlocked: false,
+    river02_done: false,
+    river03_unlocked: false,
   },
   settings: { ...DEFAULT_SETTINGS },
 };
@@ -74,6 +79,8 @@ export function loadSaveData(): SaveData {
           met_mentor: Boolean(parsed.flags?.met_mentor),
           first_race_done: Boolean(parsed.flags?.first_race_done),
           river02_unlocked: Boolean(parsed.flags?.river02_unlocked || unlocked.includes('river-02')),
+          river02_done: Boolean(parsed.flags?.river02_done),
+          river03_unlocked: Boolean(parsed.flags?.river03_unlocked),
         };
 
         if (flags.river02_unlocked && !unlocked.includes('river-02')) {
@@ -134,6 +141,8 @@ export function loadSaveData(): SaveData {
         met_mentor: false,
         first_race_done: false,
         river02_unlocked: false,
+        river02_done: false,
+        river03_unlocked: false,
       },
       settings: { ...DEFAULT_SETTINGS },
     };
@@ -172,9 +181,16 @@ export function saveTrackRecord(
   trackId: string,
   time: number,
   rank: number
-): { data: SaveData; unlockedRiver02: boolean } {
+): {
+  data: SaveData;
+  unlockedRiver02: boolean;
+  unlockedRiver03: boolean;
+  justCompletedRiver02Top3: boolean;
+} {
   const current = loadSaveData();
   let unlockedRiver02 = false;
+  let unlockedRiver03 = false;
+  let justCompletedRiver02Top3 = false;
 
   const prevBest = current.bestTimes[trackId];
   if (prevBest === undefined || time < prevBest) {
@@ -191,8 +207,22 @@ export function saveTrackRecord(
     }
   }
 
+  if (trackId === 'river-02' && rank <= 3) {
+    if (!current.flags.river02_done) {
+      current.flags.river02_done = true;
+      current.flags.river03_unlocked = true;
+      unlockedRiver03 = true;
+      justCompletedRiver02Top3 = true;
+    }
+  }
+
   writeSaveData(current);
-  return { data: current, unlockedRiver02 };
+  return {
+    data: current,
+    unlockedRiver02,
+    unlockedRiver03,
+    justCompletedRiver02Top3,
+  };
 }
 
 export function updateDialogueFlags(partialFlags: Partial<SaveFlags>): SaveData {

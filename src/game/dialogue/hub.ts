@@ -1,4 +1,5 @@
 import { SaveFlags } from '../saveSystem';
+import { WISP_WHISPER_SEQUENCE } from './storyData';
 
 export interface DialogueChoice {
   text: string;
@@ -21,105 +22,153 @@ export interface DialogueSequence {
   lines: DialogueLine[];
 }
 
+/**
+ * Hub Dialogue Sequences - Elder Moss (Section 6)
+ * Selection checked from the top. The first match wins:
+ * 1. river03_unlocked is true: Scene E-temp (Part 1 stopgap)
+ * 2. river02_unlocked is true: Scene D
+ * 3. first_race_done is true: Scene C
+ * 4. met_mentor is true: Scene B
+ * 5. Otherwise: Scene A
+ */
 export const hubDialogueSequences: DialogueSequence[] = [
-  // 1. Serpentine Rapids Unlock Sequence
+  // 1. Scene E-temp: river03 unlocked, Part 1 stopgap
   {
-    id: 'river02_unlocked',
+    id: 'scene_e_temp',
+    condition: (flags) => Boolean(flags.river03_unlocked),
+    lines: [
+      {
+        id: 501,
+        speaker: 'Elder Moss',
+        text: 'You woke Serpentine Rapids. I felt it from here, I swear.',
+      },
+      {
+        id: 502,
+        speaker: 'Elder Moss',
+        text: 'There is more river upstream, but the path is not ready yet. Come back soon, little swimmer.',
+        choices: [
+          { text: 'Race again!', action: 'track_select' },
+          { text: 'Just floating.', action: 'close' },
+        ],
+      },
+    ],
+  },
+
+  // 2. Scene D: river02 unlocked
+  {
+    id: 'scene_d',
     condition: (flags) => Boolean(flags.river02_unlocked),
     lines: [
       {
-        id: 101,
+        id: 401,
         speaker: 'Elder Moss',
-        text: 'Outstanding swimming, young one! I saw your top-three finish down on Calm Bend!',
+        text: 'A top three finish on Calm Bend! I saw it from the dock, and my old heart did a little flip.',
       },
       {
-        id: 102,
+        id: 402,
         speaker: 'Elder Moss',
-        text: 'The roaring waters of Serpentine Rapids have opened downstream in the canyon.',
+        text: 'Downstream, the canyon opens into Serpentine Rapids. The water is fast there, and the Heartstreams are strong, when they feel like it.',
       },
       {
-        id: 103,
+        id: 403,
         speaker: 'Elder Moss',
-        text: 'The S-curve rapids are treacherous and fast—weave between the jagged rock hazards and ride the crossing currents!',
+        text: 'I’ll be honest with you. The dark stones are spreading. The old folk call them Dimstones. They gather where a Heartstream goes quiet.',
       },
       {
-        id: 104,
+        id: 404,
         speaker: 'Elder Moss',
-        text: 'Which waters shall you challenge today?',
+        text: 'Every ride wakes a stream a little. Keep racing, and the river keeps its song.',
         choices: [
           { text: 'Race now!', action: 'track_select' },
-          { text: 'Not yet, let me swim around first.', action: 'close' },
+          { text: 'Not yet.', action: 'close' },
         ],
       },
     ],
   },
 
-  // 2. Return After First Race (before top-3 unlock)
+  // 3. Scene C: Finished Calm Bend, river02 still locked
   {
-    id: 'return_after_first_race',
-    condition: (flags) => Boolean(flags.first_race_done && !flags.river02_unlocked),
-    lines: [
-      {
-        id: 201,
-        speaker: 'Elder Moss',
-        text: 'Welcome back from the canyon! How did the water feel beneath your whiskers?',
-      },
-      {
-        id: 202,
-        speaker: 'Elder Moss',
-        text: 'To unlock the wild Serpentine Rapids downstream, you must place in the top 3 on Calm Bend.',
-      },
-      {
-        id: 203,
-        speaker: 'Elder Moss',
-        text: 'Ride the blue currents, time your dashes, and weave through the rock hazards to beat Pip, Luna, and Barnaby!',
-      },
-      {
-        id: 204,
-        speaker: 'Elder Moss',
-        text: 'Are you ready to dive back in and race?',
-        choices: [
-          { text: 'Race now!', action: 'track_select' },
-          { text: 'Not yet, let me swim around first.', action: 'close' },
-        ],
-      },
-    ],
-  },
-
-  // 3. First Meeting Sequence (Default)
-  {
-    id: 'first_meeting',
-    condition: () => true,
+    id: 'scene_c',
+    condition: (flags) => Boolean(flags.first_race_done),
     lines: [
       {
         id: 301,
         speaker: 'Elder Moss',
-        text: 'Ah, greetings little swimmer! I am Elder Moss, keeper of these quiet pond headwaters.',
+        text: 'You finished Calm Bend! Every finish counts, little swimmer, even the slow ones.',
       },
       {
         id: 302,
         speaker: 'Elder Moss',
-        text: 'I watched your drifting form out on the pond. You have natural instinct on the water.',
+        text: 'To open the next stretch of the Run, finish in the top three. Ride the pale Heartstreams, and steer around the dark stones.',
       },
       {
         id: 303,
         speaker: 'Elder Moss',
-        text: 'The other three river racers—Pip, Luna, and Barnaby—are ready down at Calm Bend.',
+        text: 'Those dark stones… I don’t remember them being there when I was young. Odd.',
+        choices: [
+          { text: 'Race again!', action: 'track_select' },
+          { text: 'Not yet.', action: 'close' },
+        ],
+      },
+    ],
+  },
+
+  // 4. Scene B: Back without racing
+  {
+    id: 'scene_b',
+    condition: (flags) => Boolean(flags.met_mentor),
+    lines: [
+      {
+        id: 201,
+        speaker: 'Elder Moss',
+        text: 'Back already? The pond is lovely, but the Run is better. Calm Bend is waiting whenever you are.',
+        choices: [
+          { text: 'Race now!', action: 'track_select' },
+          { text: 'Just looking around.', action: 'close' },
+        ],
+      },
+    ],
+  },
+
+  // 5. Scene A: First meeting (Default)
+  {
+    id: 'scene_a',
+    condition: () => true,
+    lines: [
+      {
+        id: 101,
+        speaker: 'Elder Moss',
+        text: 'Ah, a new face on the dock! Come closer, little swimmer. These old whiskers don’t see as far as they used to.',
       },
       {
-        id: 304,
+        id: 102,
         speaker: 'Elder Moss',
-        text: 'Mind the swirling rapids—riding the blue currents will boost your speed, but watch out for the jagged rock hazards.',
+        text: 'Welcome to Otter Haven. Our pond is calm, but out past the shore runs the Run, the river that feeds every pond in the valley.',
       },
       {
-        id: 305,
+        id: 103,
         speaker: 'Elder Moss',
-        text: 'Pass through every checkpoint arch in order, and cross the golden finish line at the river bend.',
+        text: 'Look at the water out there. See the pale ribbons? We call them Heartstreams. Ride one, and the river carries you like a friend.',
       },
       {
-        id: 306,
+        id: 104,
         speaker: 'Elder Moss',
-        text: 'Are you ready to test your whiskers against the river current?',
+        text: 'Racing began as a way to keep the Heartstreams flowing. A stream no one rides forgets how to run.',
+      },
+      {
+        id: 105,
+        speaker: 'Elder Moss',
+        text: 'Fewer swimmers race these days. I would like to change that, starting with you.',
+      },
+      {
+        id: 106,
+        speaker: 'Elder Moss',
+        text: 'Calm Bend is the gentlest stretch of the Run. Three rivals wait at the line: Pip, Barnaby and Luna. Fair warning, Luna is quick.',
+      },
+      {
+        id: 107,
+        speaker: 'Elder Moss',
+        text: 'Whenever you’re ready, the water is yours.',
         choices: [
           { text: 'Race now!', action: 'track_select' },
           { text: 'Not yet, let me swim around first.', action: 'close' },
@@ -130,12 +179,22 @@ export const hubDialogueSequences: DialogueSequence[] = [
 ];
 
 /**
- * Returns the active dialogue sequence matching current game flags and unlocked tracks
+ * Returns the active dialogue sequence matching current game flags, unlocked tracks,
+ * or an optional explicit scene override (e.g. wisp_whisper).
  */
 export function getActiveDialogue(
   flags: SaveFlags,
-  unlockedTracks: string[]
+  unlockedTracks: string[],
+  overrideSceneId?: string | null
 ): DialogueLine[] {
+  if (overrideSceneId) {
+    if (overrideSceneId === 'wisp_whisper') {
+      return WISP_WHISPER_SEQUENCE.lines;
+    }
+    const found = hubDialogueSequences.find((s) => s.id === overrideSceneId);
+    if (found) return found.lines;
+  }
+
   for (const seq of hubDialogueSequences) {
     if (seq.condition(flags, unlockedTracks)) {
       return seq.lines;

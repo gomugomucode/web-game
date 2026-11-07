@@ -5,8 +5,8 @@ import { useGameStore } from '../game/useGameStore';
 import { getActiveDialogue, DialogueChoice } from '../game/dialogue/hub';
 
 /**
- * DialogueOverlay Component (Milestone 10 & 11)
- * Data-driven dialogue UI and interaction prompt for mentor NPC Elder Moss.
+ * DialogueOverlay Component (Milestone 10, 11 & 13)
+ * Data-driven dialogue UI and interaction prompt for mentor NPC Elder Moss and story spirits (Wisp).
  * Displays progress-dependent dialogue branches and opens Track Select upon choosing 'Race now!'.
  * Rendered outside Canvas so dialogue advances never re-render the 3D scene.
  */
@@ -18,6 +18,7 @@ export function DialogueOverlay() {
   const isNearNpc = useGameStore((state) => state.isNearNpc);
   const flags = useGameStore((state) => state.flags);
   const unlockedTracks = useGameStore((state) => state.unlockedTracks);
+  const activeDialogueSceneId = useGameStore((state) => state.activeDialogueSceneId);
 
   const openDialogue = useGameStore((state) => state.openDialogue);
   const advanceDialogue = useGameStore((state) => state.advanceDialogue);
@@ -25,14 +26,15 @@ export function DialogueOverlay() {
   const closeDialogue = useGameStore((state) => state.closeDialogue);
   const openTrackSelect = useGameStore((state) => state.openTrackSelect);
 
-  // Data-driven dialogue sequence based on current progress & flags (Requirement 6)
+  // Data-driven dialogue sequence based on current progress & flags or explicit scene override
   const currentSequence = useMemo(
-    () => getActiveDialogue(flags, unlockedTracks),
-    [flags, unlockedTracks]
+    () => getActiveDialogue(flags, unlockedTracks, activeDialogueSceneId),
+    [flags, unlockedTracks, activeDialogueSceneId]
   );
 
   const currentLine = currentSequence[dialogueIndex];
   const hasChoices = currentLine && currentLine.choices && currentLine.choices.length > 0;
+  const isWisp = currentLine?.speaker === 'Wisp';
 
   const handleChoiceSelect = useCallback(
     (action: DialogueChoice['action']) => {
@@ -47,12 +49,13 @@ export function DialogueOverlay() {
 
   // Keyboard navigation for dialogue and interaction prompt
   useEffect(() => {
-    if (mode !== 'hub') return;
+    // Only intercept when in hub mode or when dialogue overlay is actively open
+    if (mode !== 'hub' && !isDialogueOpen) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      // 1. Open dialogue when near NPC and pressing E
+      // 1. Open dialogue when near NPC and pressing E (hub only)
       if (!isDialogueOpen) {
-        if (isNearNpc && (e.code === 'KeyE' || e.key.toLowerCase() === 'e')) {
+        if (mode === 'hub' && isNearNpc && (e.code === 'KeyE' || e.key.toLowerCase() === 'e')) {
           e.preventDefault();
           openDialogue();
         }
@@ -116,12 +119,12 @@ export function DialogueOverlay() {
     handleChoiceSelect,
   ]);
 
-  if (mode !== 'hub') return null;
+  if (mode !== 'hub' && !isDialogueOpen) return null;
 
   return (
     <div className="pointer-events-none absolute inset-0 z-20 flex flex-col justify-end p-6 select-none font-sans">
-      {/* Interact Prompt when near NPC and dialogue not yet opened */}
-      {!isDialogueOpen && isNearNpc && (
+      {/* Interact Prompt when near NPC and dialogue not yet opened (Hub only) */}
+      {!isDialogueOpen && isNearNpc && mode === 'hub' && (
         <div className="pointer-events-auto mx-auto mb-8 animate-bounce">
           <button
             onClick={() => openDialogue()}
@@ -139,10 +142,22 @@ export function DialogueOverlay() {
 
       {/* Active Dialogue Box */}
       {isDialogueOpen && currentLine && (
-        <div className="pointer-events-auto mx-auto w-full max-w-2xl bg-slate-950/95 border-2 border-emerald-500/50 rounded-3xl p-6 shadow-2xl backdrop-blur-xl text-white space-y-4 animate-in fade-in zoom-in-95 duration-150">
+        <div
+          className={`pointer-events-auto mx-auto w-full max-w-2xl bg-slate-950/95 border-2 rounded-3xl p-6 shadow-2xl backdrop-blur-xl text-white space-y-4 animate-in fade-in zoom-in-95 duration-150 ${
+            isWisp
+              ? 'border-cyan-400/70 shadow-[0_0_50px_rgba(56,189,248,0.3)]'
+              : 'border-emerald-500/50 shadow-2xl'
+          }`}
+        >
           {/* Speaker Badge */}
           <div className="flex items-center justify-between">
-            <span className="inline-block bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 font-bold px-3.5 py-1 rounded-full text-xs tracking-wider uppercase">
+            <span
+              className={`inline-block font-bold px-3.5 py-1 rounded-full text-xs tracking-wider uppercase transition-all ${
+                isWisp
+                  ? 'bg-cyan-500/20 border border-cyan-300/70 text-cyan-200 shadow-[0_0_16px_rgba(56,189,248,0.7)] animate-pulse'
+                  : 'bg-emerald-500/20 border border-emerald-400/40 text-emerald-300'
+              }`}
+            >
               {currentLine.speaker}
             </span>
             <span className="text-xs text-slate-400 font-mono">
@@ -202,7 +217,11 @@ export function DialogueOverlay() {
                     closeDialogue();
                   }
                 }}
-                className="text-xs text-emerald-400 flex items-center gap-2 hover:text-emerald-300 transition-colors cursor-pointer"
+                className={`text-xs flex items-center gap-2 transition-colors cursor-pointer ${
+                  isWisp
+                    ? 'text-cyan-300 hover:text-cyan-200'
+                    : 'text-emerald-400 hover:text-emerald-300'
+                }`}
               >
                 <span>Continue</span>
                 <kbd className="px-2 py-0.5 rounded bg-white/10 border border-white/20 font-mono text-[11px] text-slate-200">
