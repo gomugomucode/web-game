@@ -121,3 +121,4 @@ Hi, I’m looking for a stylized low-poly otter for a 3D browser game built with
 - Whether an artist can hit 4,000 triangles in this style (ask for a block-out first).
 - Triangle budget depends on target devices. Current race scenes measure ~40 to 51 draw calls and 28,000 to 32,000 triangles, so each rival otter should add at most 3 draw calls.
 - Price and timeline (request estimates per candidate).
+
