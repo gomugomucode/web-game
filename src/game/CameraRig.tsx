@@ -5,6 +5,7 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { GAME_CONSTANTS } from './constants';
 import { sharedOtterRefs } from './sharedRefs';
+import { useGameStore } from './useGameStore';
 
 /**
  * CameraRig - Milestone 2
@@ -44,6 +45,8 @@ export function CameraRig() {
     // 1. Clamp dt to max delta per Section 4 convention
     const dt = Math.min(delta, GAME_CONSTANTS.MAX_DELTA_TIME);
     if (dt <= 0) return;
+
+    if (useGameStore.getState().isPaused) return;
 
     // 2. Read live otter position, heading, and dash state from shared refs
     const pos = sharedOtterRefs.position;

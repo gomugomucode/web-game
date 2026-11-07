@@ -93,6 +93,8 @@ export function Rivals({ track }: RivalsProps) {
     if (dt <= 0) return;
 
     const gameState = useGameStore.getState();
+    if (gameState.isPaused) return;
+
     const phase = gameState.phase;
     const rivals = rivalsRef.current;
     const profiles = GAME_CONSTANTS.RIVAL_PROFILES;

@@ -212,6 +212,10 @@ class SoundManager {
     }
   }
 
+  public playCountdownGo(): void {
+    this.playCountdownBeep('GO');
+  }
+
   /** 2. Checkpoint Gate Ring Chime */
   public playCheckpointChime(): void {
     this.init();
@@ -422,7 +426,8 @@ class SoundManager {
   /**
    * Clean hook for future background music
    */
-  public playMusic(_trackName: string): void {
+  public playMusic(_trackName?: string): void {
+    void _trackName;
     // Clean hook for music later per Requirement 3; no music added now
   }
 

@@ -13,6 +13,7 @@ import { Track } from './tracks/types';
 import { useGameStore } from './useGameStore';
 import { threeStepGradientMap } from './toonGradient';
 import { RiverBoundary, HubBoundary, HUB_OBSTACLES } from './boundaries';
+import { soundManager } from './audio/soundManager';
 
 interface OtterProps {
   inputRef: React.RefObject<InputState>;
@@ -58,6 +59,7 @@ export function Otter({ inputRef, tunables, track }: OtterProps) {
   const dashBoostTimerRef = useRef(0);
   const hazardCooldownTimerRef = useRef(0);
   const prevSpacePressedRef = useRef(false);
+  const wasInCurrentRef = useRef(false);
 
   // Cosmetic visual feedback refs
   const currentRollRef = useRef(0);
@@ -83,6 +85,10 @@ export function Otter({ inputRef, tunables, track }: OtterProps) {
 
     // Read current mode and race phase from store
     const gameState = useGameStore.getState();
+    if (gameState.isPaused) {
+      soundManager.updateWaterAmbience(0, false, true);
+      return;
+    }
     const mode = gameState.mode;
     const phase = gameState.phase;
     const currentTrack = track || getTrack(gameState.activeTrackId);
@@ -113,6 +119,7 @@ export function Otter({ inputRef, tunables, track }: OtterProps) {
       dashBoostTimerRef.current = 0;
       hazardCooldownTimerRef.current = 0;
       prevSpacePressedRef.current = false;
+      wasInCurrentRef.current = false;
       currentRollRef.current = 0;
       bobPhaseRef.current = 0;
 
@@ -238,6 +245,8 @@ export function Otter({ inputRef, tunables, track }: OtterProps) {
       // Add immediate impulse along forward vector
       v.x += fwdX * tunables.dashImpulse;
       v.z += fwdZ * tunables.dashImpulse;
+
+      soundManager.playDashWhoosh();
     }
 
     const isDashBoostActive = dashBoostTimerRef.current > 0;
@@ -301,6 +310,12 @@ export function Otter({ inputRef, tunables, track }: OtterProps) {
       }
     }
 
+    // Audio cue when entering water current
+    if (inAnyCurrent && !wasInCurrentRef.current) {
+      soundManager.playCurrentShimmer();
+    }
+    wasInCurrentRef.current = inAnyCurrent;
+
     // 10. Position update on X-Z plane
     pos.x += v.x * dt;
     pos.z += v.z * dt;
@@ -345,6 +360,7 @@ export function Otter({ inputRef, tunables, track }: OtterProps) {
             hazardCooldownTimerRef.current = GAME_CONSTANTS.HAZARD_COOLDOWN;
             v.x *= GAME_CONSTANTS.HAZARD_SPEED_MULTIPLIER;
             v.z *= GAME_CONSTANTS.HAZARD_SPEED_MULTIPLIER;
+            soundManager.playRockThud();
           }
         }
       }
@@ -365,8 +381,10 @@ export function Otter({ inputRef, tunables, track }: OtterProps) {
           if (currentCpIndex === currentTrack.checkpoints.length - 1) {
             // Crossed the final checkpoint (Finish line)
             const finishTimestamp = performance.now();
+            const currentPauseSpan =
+              gameState.isPaused && gameState.pausedAt ? finishTimestamp - gameState.pausedAt : 0;
             const totalElapsed = gameState.raceStartTime
-              ? finishTimestamp - gameState.raceStartTime
+              ? finishTimestamp - gameState.raceStartTime - gameState.pauseOffset - currentPauseSpan
               : 0;
             gameState.finish(totalElapsed, otterTelemetry.playerRank);
           } else {
@@ -434,6 +452,9 @@ export function Otter({ inputRef, tunables, track }: OtterProps) {
     otterTelemetry.position[0] = pos.x;
     otterTelemetry.position[1] = pos.y;
     otterTelemetry.position[2] = pos.z;
+
+    // Modulate procedural water ambience sound based on player motion
+    soundManager.updateWaterAmbience(currentSpeed, inAnyCurrent, false);
   });
 
   return (

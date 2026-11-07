@@ -168,6 +168,7 @@ export function River({ track }: RiverProps) {
 
   // Animate water shader time uniform per frame (Milestone 6)
   useFrame((_, delta) => {
+    if (useGameStore.getState().isPaused) return;
     const dt = Math.min(delta, GAME_CONSTANTS.MAX_DELTA_TIME);
     sharedWaterMaterial.uniforms.uTime.value += dt;
   });

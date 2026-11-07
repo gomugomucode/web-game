@@ -7,6 +7,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { Track } from './tracks/types';
 import { GAME_CONSTANTS } from './constants';
 import { smoothCenterline } from './math';
+import { useGameStore } from './useGameStore';
 
 interface CurrentsProps {
   track: Track;
@@ -155,6 +156,7 @@ export function Currents({ track }: CurrentsProps) {
   const tempEuler = useRef(new THREE.Euler());
 
   useFrame((_, delta) => {
+    if (useGameStore.getState().isPaused) return;
     const dt = Math.min(delta, GAME_CONSTANTS.MAX_DELTA_TIME);
     if (dt <= 0 || !instancedMeshRef.current || processedCurrents.length === 0) return;
 

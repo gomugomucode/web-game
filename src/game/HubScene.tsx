@@ -196,6 +196,7 @@ export function HubScene() {
 
   // Frame update for water shader, floating quest marker bobbing, and NPC distance check
   useFrame((_, delta) => {
+    if (useGameStore.getState().isPaused) return;
     const dt = Math.min(delta, GAME_CONSTANTS.MAX_DELTA_TIME);
 
     // Animate water shader time uniform

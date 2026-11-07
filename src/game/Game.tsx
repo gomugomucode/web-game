@@ -19,13 +19,22 @@ import { useGameStore } from './useGameStore';
 import { Hud } from '../ui/Hud';
 import { DialogueOverlay } from '../ui/DialogueOverlay';
 import { TrackSelectOverlay } from '../ui/TrackSelectOverlay';
+import { PauseOverlay } from '../ui/PauseOverlay';
+import { SettingsOverlay } from '../ui/SettingsOverlay';
+import { TouchNotice } from '../ui/TouchNotice';
 
 export function Game() {
   // Global keyboard input listener ref
   const inputRef = useKeyboardInput();
   const mode = useGameStore((state) => state.mode);
   const activeTrackId = useGameStore((state) => state.activeTrackId);
+  const settings = useGameStore((state) => state.settings);
   const activeTrack = getTrack(activeTrackId);
+
+  // Milestone 12: Production hardening - hide Leva unless in development or ?debug is present
+  const isDebugMode =
+    process.env.NODE_ENV !== 'production' ||
+    (typeof window !== 'undefined' && window.location.search.includes('debug'));
 
   // Leva controls for live tuning of movement values
   const tunables = useControls('Movement Tunables', {
@@ -103,11 +112,17 @@ export function Game() {
 
   return (
     <div className="relative w-screen h-screen overflow-hidden bg-sky-200">
-      {/* Leva Live Tuning Panel in Development */}
-      <Leva collapsed={false} oneLineLabels={false} />
+      {/* Leva Live Tuning Panel in Development (hidden in production unless ?debug) */}
+      <Leva hidden={!isDebugMode} collapsed={false} oneLineLabels={false} />
 
       {/* High-performance Race & Hub HUD */}
       <Hud tunables={tunables} />
+
+      {/* Pause Menu Overlay (Milestone 12) */}
+      <PauseOverlay />
+
+      {/* Audio & Graphics Settings Overlay (Milestone 12) */}
+      <SettingsOverlay />
 
       {/* Dialogue Overlay (Milestone 10 & 11) */}
       <DialogueOverlay />
@@ -115,9 +130,12 @@ export function Game() {
       {/* Track Select Overlay (Milestone 11) */}
       <TrackSelectOverlay />
 
+      {/* Friendly Touch-Device Keyboard Notice (Milestone 12) */}
+      <TouchNotice />
+
       {/* 3D Scene Canvas */}
       <Canvas
-        dpr={GAME_CONSTANTS.CANVAS_DPR}
+        dpr={settings.graphicsQuality === 'low' ? [1, 1] : GAME_CONSTANTS.CANVAS_DPR}
         camera={{
           position: [
             GAME_CONSTANTS.HUB_SPAWN_POS[0],

@@ -5,6 +5,7 @@ import { MovementTunables } from '../game/constants';
 import { otterTelemetry } from '../game/telemetry';
 import { useGameStore } from '../game/useGameStore';
 import { getTrack } from '../game/tracks/registry';
+import { soundManager } from '../game/audio/soundManager';
 
 interface HudProps {
   tunables: MovementTunables;
@@ -62,9 +63,10 @@ export function Hud({ tunables }: HudProps) {
   const countdownTextRef = useRef<HTMLSpanElement>(null);
 
   const countdownStartTimeRef = useRef<number | null>(null);
+  const lastBeepRef = useRef<number | null>(null);
   const lastRunIdRef = useRef<number>(-1);
 
-  // Global keyboard shortcuts for R (restart) and Space/Enter (ready screen start)
+  // Global keyboard shortcuts for R (restart), Space/Enter (start), Esc (pause), M (mute), and F3 (debug)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Don't intercept if user is typing in a form or input field
@@ -73,21 +75,42 @@ export function Hud({ tunables }: HudProps) {
         return;
       }
 
+      const store = useGameStore.getState();
+
       if (e.code === 'KeyR' || e.key.toLowerCase() === 'r') {
-        useGameStore.getState().restart();
-      } else if (e.code === 'F3' || e.key === 'F3') {
+        if (!store.isPaused && !store.isDialogueOpen && !store.isTrackSelectOpen) {
+          store.restart();
+        }
+      } else if (e.code === 'KeyM' || e.key.toLowerCase() === 'm') {
         e.preventDefault();
-        devVisibleRef.current = !devVisibleRef.current;
-        if (devOverlayRef.current) {
-          devOverlayRef.current.style.display = devVisibleRef.current ? 'block' : 'none';
+        store.toggleMute();
+      } else if (e.code === 'Escape' || e.key === 'Escape') {
+        // Pausing is disallowed during dialogue or track select (they handle their own Esc behavior)
+        if (store.isDialogueOpen || store.isTrackSelectOpen) {
+          return;
+        }
+        e.preventDefault();
+        store.togglePause();
+      } else if (e.code === 'F3' || e.key === 'F3') {
+        // Only allow F3 overlay in development or when ?debug is in the URL (Milestone 12)
+        const isDebugAllowed =
+          process.env.NODE_ENV !== 'production' ||
+          (typeof window !== 'undefined' && window.location.search.includes('debug'));
+        if (isDebugAllowed) {
+          e.preventDefault();
+          devVisibleRef.current = !devVisibleRef.current;
+          if (devOverlayRef.current) {
+            devOverlayRef.current.style.display = devVisibleRef.current ? 'block' : 'none';
+          }
         }
       } else if (
         (e.code === 'Enter' || e.code === 'NumpadEnter' || e.code === 'Space') &&
-        useGameStore.getState().mode === 'race' &&
-        useGameStore.getState().phase === 'idle'
+        store.mode === 'race' &&
+        store.phase === 'idle' &&
+        !store.isPaused
       ) {
         e.preventDefault();
-        useGameStore.getState().startCountdown();
+        store.startCountdown();
       }
     };
 
@@ -106,15 +129,20 @@ export function Hud({ tunables }: HudProps) {
       if (gameState.runId !== lastRunIdRef.current) {
         lastRunIdRef.current = gameState.runId;
         countdownStartTimeRef.current = null;
+        lastBeepRef.current = null;
       }
 
       // --- 1. Countdown Phase Handling (Requirement 1: 3, 2, 1, GO - Race mode only) ---
       if (gameState.mode === 'race' && gameState.phase === 'countdown') {
         if (countdownStartTimeRef.current === null) {
           countdownStartTimeRef.current = timestamp;
+          lastBeepRef.current = null;
         }
 
-        const elapsedCd = (timestamp - countdownStartTimeRef.current) / 1000;
+        const currentPauseSpan =
+          gameState.isPaused && gameState.pausedAt ? timestamp - gameState.pausedAt : 0;
+        const elapsedCd =
+          (timestamp - countdownStartTimeRef.current - gameState.pauseOffset - currentPauseSpan) / 1000;
 
         if (countdownOverlayRef.current && countdownTextRef.current) {
           countdownOverlayRef.current.style.display = 'flex';
@@ -123,23 +151,43 @@ export function Hud({ tunables }: HudProps) {
             countdownTextRef.current.textContent = '3';
             countdownTextRef.current.className =
               'text-8xl sm:text-9xl font-black text-amber-400 drop-shadow-[0_10px_20px_rgba(245,158,11,0.5)] scale-110 transition-transform';
+            if (lastBeepRef.current !== 3) {
+              lastBeepRef.current = 3;
+              soundManager.playCountdownBeep(3);
+            }
           } else if (elapsedCd < 2.0) {
             countdownTextRef.current.textContent = '2';
             countdownTextRef.current.className =
               'text-8xl sm:text-9xl font-black text-amber-300 drop-shadow-[0_10px_20px_rgba(252,211,77,0.5)] scale-110 transition-transform';
+            if (lastBeepRef.current !== 2) {
+              lastBeepRef.current = 2;
+              soundManager.playCountdownBeep(2);
+            }
           } else if (elapsedCd < 3.0) {
             countdownTextRef.current.textContent = '1';
             countdownTextRef.current.className =
               'text-8xl sm:text-9xl font-black text-sky-400 drop-shadow-[0_10px_20px_rgba(56,189,248,0.5)] scale-110 transition-transform';
+            if (lastBeepRef.current !== 1) {
+              lastBeepRef.current = 1;
+              soundManager.playCountdownBeep(1);
+            }
           } else {
             // Countdown complete: switch to racing phase
             countdownStartTimeRef.current = null;
+            lastBeepRef.current = null;
+            soundManager.playCountdownGo();
             gameState.startRace();
           }
         }
       } else if (gameState.mode === 'race' && gameState.phase === 'racing') {
         // Show "GO!" for the first 0.8s of racing
-        if (gameState.raceStartTime && timestamp - gameState.raceStartTime < 800) {
+        const currentPauseSpan =
+          gameState.isPaused && gameState.pausedAt ? timestamp - gameState.pausedAt : 0;
+        const raceElapsed = gameState.raceStartTime
+          ? timestamp - gameState.raceStartTime - gameState.pauseOffset - currentPauseSpan
+          : 9999;
+
+        if (raceElapsed < 800) {
           if (countdownOverlayRef.current && countdownTextRef.current) {
             countdownOverlayRef.current.style.display = 'flex';
             countdownTextRef.current.textContent = 'GO!';
@@ -153,6 +201,7 @@ export function Hud({ tunables }: HudProps) {
         }
       } else {
         countdownStartTimeRef.current = null;
+        lastBeepRef.current = null;
         if (countdownOverlayRef.current) {
           countdownOverlayRef.current.style.display = 'none';
         }
@@ -161,8 +210,11 @@ export function Hud({ tunables }: HudProps) {
       // --- 2. Live Timer Display (Race mode only) ---
       if (timerTextRef.current) {
         if (gameState.mode === 'race' && gameState.phase === 'racing' && gameState.raceStartTime) {
-          const elapsed = performance.now() - gameState.raceStartTime;
-          timerTextRef.current.textContent = formatTime(elapsed);
+          const currentPauseSpan =
+            gameState.isPaused && gameState.pausedAt ? performance.now() - gameState.pausedAt : 0;
+          const elapsed =
+            performance.now() - gameState.raceStartTime - gameState.pauseOffset - currentPauseSpan;
+          timerTextRef.current.textContent = formatTime(Math.max(0, elapsed));
         } else if (gameState.mode === 'race' && gameState.phase === 'finished' && gameState.finishTime !== null) {
           timerTextRef.current.textContent = formatTime(gameState.finishTime);
         } else {
@@ -343,8 +395,34 @@ export function Hud({ tunables }: HudProps) {
                   {nextCheckpoint} / {activeTrack.checkpoints.length}
                 </span>
               </div>
+
+              {/* Pause Button (Milestone 12) */}
+              <button
+                type="button"
+                onClick={() => useGameStore.getState().pause()}
+                className="pointer-events-auto bg-slate-900/85 hover:bg-slate-800 text-slate-300 hover:text-white font-bold text-xs uppercase tracking-wider px-3.5 py-3 rounded-2xl border border-white/10 shadow-xl transition-all active:scale-95 cursor-pointer flex items-center gap-1.5"
+                title="Pause Game (Esc)"
+              >
+                <span>⏸️</span>
+                <span className="hidden sm:inline">Pause</span>
+              </button>
             </div>
           </>
+        )}
+
+        {/* Hub Mode Quick Settings Button */}
+        {mode === 'hub' && (
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => useGameStore.getState().openSettings()}
+              className="pointer-events-auto bg-slate-900/85 hover:bg-slate-800 text-sky-300 font-bold text-xs uppercase tracking-wider px-4 py-3 rounded-2xl border border-sky-400/30 shadow-xl transition-all active:scale-95 cursor-pointer flex items-center gap-2"
+              title="Open Settings"
+            >
+              <span>⚙️</span>
+              <span>Settings</span>
+            </button>
+          </div>
         )}
       </header>
 
@@ -532,6 +610,13 @@ export function Hud({ tunables }: HudProps) {
                 <kbd className="px-2 py-1 bg-slate-800 rounded border border-slate-700 font-mono text-slate-300">R</kbd>
                 <span>Reset to spawn</span>
               </div>
+              <div className="flex items-center gap-2 text-sky-300 col-span-2 pt-1 border-t border-white/5">
+                <kbd className="px-1.5 py-0.5 bg-slate-800 rounded border border-slate-700 font-mono text-xs">Esc</kbd>
+                <span>Pause & Settings</span>
+                <span className="text-slate-500">·</span>
+                <kbd className="px-1.5 py-0.5 bg-slate-800 rounded border border-slate-700 font-mono text-xs text-amber-300">M</kbd>
+                <span>Mute</span>
+              </div>
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-y-2 text-xs text-slate-200">
@@ -551,9 +636,16 @@ export function Hud({ tunables }: HudProps) {
                 <kbd className="px-2 py-1 bg-slate-800 rounded border border-slate-700 font-mono text-amber-300 font-bold">Space</kbd>
                 <span>Dash impulse</span>
               </div>
-              <div className="flex items-center gap-2 col-span-2 text-slate-400">
+              <div className="flex items-center gap-2 text-slate-400">
                 <kbd className="px-2 py-1 bg-slate-800 rounded border border-slate-700 font-mono text-slate-300">R</kbd>
-                <span>Restart race at any time</span>
+                <span>Restart race</span>
+              </div>
+              <div className="flex items-center gap-2 text-sky-300">
+                <kbd className="px-1.5 py-0.5 bg-slate-800 rounded border border-slate-700 font-mono text-xs">Esc</kbd>
+                <span>Pause</span>
+                <span className="text-slate-500">·</span>
+                <kbd className="px-1.5 py-0.5 bg-slate-800 rounded border border-slate-700 font-mono text-xs text-amber-300">M</kbd>
+                <span>Mute</span>
               </div>
             </div>
           )}
