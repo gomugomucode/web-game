@@ -8,15 +8,32 @@ export interface SaveFlags {
   river02_unlocked: boolean;
 }
 
+export interface GameSettings {
+  masterVolume: number; // 0.0 to 1.0
+  musicVolume: number;  // 0.0 to 1.0
+  sfxVolume: number;    // 0.0 to 1.0
+  muted: boolean;
+  graphicsQuality: 'high' | 'low';
+}
+
 export interface SaveData {
-  version: 1;
+  version: 2;
   unlockedTracks: string[];
   bestTimes: Record<string, number>;
   flags: SaveFlags;
+  settings: GameSettings;
 }
 
+export const DEFAULT_SETTINGS: Readonly<GameSettings> = {
+  masterVolume: 0.8,
+  musicVolume: 0.7,
+  sfxVolume: 0.9,
+  muted: false,
+  graphicsQuality: 'high',
+};
+
 export const DEFAULT_SAVE_DATA: Readonly<SaveData> = {
-  version: 1,
+  version: 2,
   unlockedTracks: ['river-01'],
   bestTimes: {},
   flags: {
@@ -24,6 +41,7 @@ export const DEFAULT_SAVE_DATA: Readonly<SaveData> = {
     first_race_done: false,
     river02_unlocked: false,
   },
+  settings: { ...DEFAULT_SETTINGS },
 };
 
 function getLegacyKey(trackId: string): string {
@@ -39,10 +57,9 @@ export function loadSaveData(): SaveData {
     const raw = localStorage.getItem(SAVE_STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (parsed && parsed.version === 1) {
-        // Validate and ensure all required fields exist
+      if (parsed && typeof parsed === 'object') {
         const unlocked = Array.isArray(parsed.unlockedTracks) && parsed.unlockedTracks.length > 0
-          ? parsed.unlockedTracks
+          ? [...parsed.unlockedTracks]
           : ['river-01'];
         if (!unlocked.includes('river-01')) {
           unlocked.unshift('river-01');
@@ -59,21 +76,47 @@ export function loadSaveData(): SaveData {
           river02_unlocked: Boolean(parsed.flags?.river02_unlocked || unlocked.includes('river-02')),
         };
 
-        // If river02_unlocked is true, ensure 'river-02' is in unlockedTracks
         if (flags.river02_unlocked && !unlocked.includes('river-02')) {
           unlocked.push('river-02');
         }
 
-        return {
-          version: 1,
+        // Migrate settings from version 1 or validate version 2 settings
+        const loadedSettings: GameSettings = {
+          masterVolume: typeof parsed.settings?.masterVolume === 'number'
+            ? Math.max(0, Math.min(1, parsed.settings.masterVolume))
+            : DEFAULT_SETTINGS.masterVolume,
+          musicVolume: typeof parsed.settings?.musicVolume === 'number'
+            ? Math.max(0, Math.min(1, parsed.settings.musicVolume))
+            : DEFAULT_SETTINGS.musicVolume,
+          sfxVolume: typeof parsed.settings?.sfxVolume === 'number'
+            ? Math.max(0, Math.min(1, parsed.settings.sfxVolume))
+            : DEFAULT_SETTINGS.sfxVolume,
+          muted: Boolean(parsed.settings?.muted ?? DEFAULT_SETTINGS.muted),
+          graphicsQuality: parsed.settings?.graphicsQuality === 'low' ? 'low' : 'high',
+        };
+
+        const migratedSave: SaveData = {
+          version: 2,
           unlockedTracks: unlocked,
           bestTimes,
           flags,
+          settings: loadedSettings,
         };
+
+        // If migrating from v1 (or if json wasn't already version 2), save v2 back
+        if (parsed.version !== 2) {
+          try {
+            localStorage.setItem(SAVE_STORAGE_KEY, JSON.stringify(migratedSave));
+          } catch {
+            // Ignore quota errors
+          }
+        }
+
+        return migratedSave;
       }
     }
 
-    // No valid modern save file found: check legacy key for backward compatibility
+    // No valid save found: check legacy key for backward compatibility
     const legacyRiver01 = localStorage.getItem(getLegacyKey('river-01'));
     const initialBestTimes: Record<string, number> = {};
     if (legacyRiver01) {
@@ -84,7 +127,7 @@ export function loadSaveData(): SaveData {
     }
 
     const initialSave: SaveData = {
-      version: 1,
+      version: 2,
       unlockedTracks: ['river-01'],
       bestTimes: initialBestTimes,
       flags: {
@@ -92,13 +135,13 @@ export function loadSaveData(): SaveData {
         first_race_done: false,
         river02_unlocked: false,
       },
+      settings: { ...DEFAULT_SETTINGS },
     };
 
-    // Attempt to persist the migrated save
     try {
       localStorage.setItem(SAVE_STORAGE_KEY, JSON.stringify(initialSave));
     } catch {
-      // Ignore quota errors during initial write
+      // Ignore quota errors
     }
 
     return initialSave;
@@ -140,7 +183,6 @@ export function saveTrackRecord(
 
   current.flags.first_race_done = true;
 
-  // Milestone 11 Progression Rule: river02 is unlocked when river01 is finished in top 3
   if (trackId === 'river-01' && rank <= 3) {
     if (!current.unlockedTracks.includes('river-02')) {
       current.unlockedTracks.push('river-02');
@@ -163,3 +205,12 @@ export function updateDialogueFlags(partialFlags: Partial<SaveFlags>): SaveData 
   return current;
 }
 
+export function updateSaveSettings(partialSettings: Partial<GameSettings>): SaveData {
+  const current = loadSaveData();
+  current.settings = {
+    ...current.settings,
+    ...partialSettings,
+  };
+  writeSaveData(current);
+  return current;
+}
