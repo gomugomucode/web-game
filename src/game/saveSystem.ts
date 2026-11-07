@@ -162,3 +162,4 @@ export function updateDialogueFlags(partialFlags: Partial<SaveFlags>): SaveData 
   writeSaveData(current);
   return current;
 }
+
