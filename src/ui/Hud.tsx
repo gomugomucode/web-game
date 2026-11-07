@@ -44,6 +44,15 @@ export function Hud({ tunables }: HudProps) {
   const winningRivalId = useGameStore((state) => state.winningRivalId);
   const unlockBanner = useGameStore((state) => state.unlockBanner);
 
+  // Pointer lock & settings (Milestone 15)
+  const isPointerLocked = useGameStore((state) => state.isPointerLocked);
+  const pointerLockRefused = useGameStore((state) => state.pointerLockRefused);
+  const settings = useGameStore((state) => state.settings);
+  const isDialogueOpen = useGameStore((state) => state.isDialogueOpen);
+  const isTrackSelectOpen = useGameStore((state) => state.isTrackSelectOpen);
+  const isSettingsOpen = useGameStore((state) => state.isSettingsOpen);
+  const isPaused = useGameStore((state) => state.isPaused);
+
   const activeTrack = getTrack(activeTrackId);
   const readyRivalLine = getRivalReadyLine(activeTrackId, readyRivalIndex);
   const resultQuote = getResultDialogue(playerRank, secondPlaceRivalId, winningRivalId);
@@ -454,6 +463,24 @@ export function Hud({ tunables }: HudProps) {
         <span ref={countdownTextRef} className="text-9xl font-black" />
       </div>
 
+      {/* Pointer Lock Resume Hint (Milestone 15) */}
+      {!isPointerLocked &&
+        settings.controlMode === 'camera-relative' &&
+        !isPaused &&
+        !isDialogueOpen &&
+        !isTrackSelectOpen &&
+        !isSettingsOpen &&
+        phase !== 'finished' && (
+          <div className="pointer-events-none fixed top-16 left-1/2 -translate-x-1/2 z-30 px-4 py-1.5 rounded-full bg-slate-900/90 border border-sky-400/50 text-sky-300 font-bold text-xs uppercase tracking-wider shadow-lg flex items-center gap-2 animate-pulse">
+            <span>🖱️</span>
+            <span>
+              {pointerLockRefused
+                ? 'Pointer lock unavailable · Use Arrow keys to look'
+                : 'Click screen to resume camera control'}
+            </span>
+          </div>
+        )}
+
       {/* Ready Screen Overlay (Race mode only) */}
       {mode === 'race' && phase === 'idle' && (
         <div className="pointer-events-auto absolute inset-0 z-20 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-200">
@@ -496,18 +523,41 @@ export function Hud({ tunables }: HudProps) {
 
             <div className="w-full bg-slate-800/80 rounded-2xl p-4 border border-white/10 space-y-2 text-xs text-slate-300 text-left">
               <div className="font-bold text-sky-400 uppercase tracking-wider text-[11px] mb-2">Controls Overview</div>
-              <div className="flex justify-between">
-                <span className="text-slate-400">Swim & Steer</span>
-                <span className="font-mono text-amber-300 font-bold">W / A / S / D  or  Arrow Keys</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-400">Dash Boost</span>
-                <span className="font-mono text-amber-300 font-bold">Space</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-400">Restart Race</span>
-                <span className="font-mono text-amber-300 font-bold">R (anytime)</span>
-              </div>
+              {settings.controlMode === 'camera-relative' ? (
+                <>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Move / Brake</span>
+                    <span className="font-mono text-amber-300 font-bold">W / A / S / D</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Camera Look</span>
+                    <span className="font-mono text-amber-300 font-bold">Mouse (Click to lock) · C recenter</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Dash Boost</span>
+                    <span className="font-mono text-amber-300 font-bold">Shift / Space</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Restart Race</span>
+                    <span className="font-mono text-amber-300 font-bold">R (anytime)</span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Thrust & Steer</span>
+                    <span className="font-mono text-amber-300 font-bold">W (thrust) · A / D (steer) · S (brake)</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Dash Boost</span>
+                    <span className="font-mono text-amber-300 font-bold">Shift / Space</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Restart Race</span>
+                    <span className="font-mono text-amber-300 font-bold">R (anytime)</span>
+                  </div>
+                </>
+              )}
             </div>
 
             <div className="w-full space-y-3">
@@ -655,7 +705,44 @@ export function Hud({ tunables }: HudProps) {
                 : 'Racing active'}
             </span>
           </div>
-          {mode === 'hub' ? (
+          {settings.controlMode === 'camera-relative' ? (
+            <div className="grid grid-cols-2 gap-y-2 text-xs text-slate-200">
+              <div className="flex items-center gap-2">
+                <kbd className="px-2 py-1 bg-slate-800 rounded border border-slate-700 font-mono text-amber-300 font-bold">W A S D</kbd>
+                <span>Move & brake</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <kbd className="px-2 py-1 bg-slate-800 rounded border border-slate-700 font-mono text-amber-300 font-bold">Mouse</kbd>
+                <span>Look (Click lock)</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <kbd className="px-2 py-1 bg-slate-800 rounded border border-slate-700 font-mono text-amber-300 font-bold">Shift / Space</kbd>
+                <span>Dash impulse</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <kbd className="px-2 py-1 bg-slate-800 rounded border border-slate-700 font-mono text-amber-300 font-bold">C / MMB</kbd>
+                <span>Recenter view</span>
+              </div>
+              {mode === 'hub' ? (
+                <div className="flex items-center gap-2 text-emerald-300">
+                  <kbd className="px-2 py-1 bg-emerald-950/80 rounded border border-emerald-500/50 font-mono text-emerald-300 font-bold">F / E</kbd>
+                  <span>Talk with Elder Moss</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 text-slate-400">
+                  <kbd className="px-2 py-1 bg-slate-800 rounded border border-slate-700 font-mono text-slate-300">R</kbd>
+                  <span>Restart race</span>
+                </div>
+              )}
+              <div className="flex items-center gap-2 text-sky-300">
+                <kbd className="px-1.5 py-0.5 bg-slate-800 rounded border border-slate-700 font-mono text-xs">Esc</kbd>
+                <span>Pause</span>
+                <span className="text-slate-500">·</span>
+                <kbd className="px-1.5 py-0.5 bg-slate-800 rounded border border-slate-700 font-mono text-xs text-amber-300">M</kbd>
+                <span>Mute</span>
+              </div>
+            </div>
+          ) : mode === 'hub' ? (
             <div className="grid grid-cols-2 gap-y-2 text-xs text-slate-200">
               <div className="flex items-center gap-2">
                 <kbd className="px-2 py-1 bg-slate-800 rounded border border-slate-700 font-mono text-amber-300 font-bold">W / ↑</kbd>

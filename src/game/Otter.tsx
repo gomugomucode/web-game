@@ -208,14 +208,9 @@ export function Otter({ inputRef, tunables, track }: OtterProps) {
       hazardCooldownTimerRef.current = Math.max(0, hazardCooldownTimerRef.current - dt);
     }
 
-    // 4. Steering (Section 6.2)
-    // Left Arrow / A (+1) turns left on screen (increases heading towards +X)
-    // Right Arrow / D (-1) turns right on screen (decreases heading towards -X)
-    let turnInput = 0;
-    if (allowSteering) {
-      if (input.left) turnInput += 1;
-      if (input.right) turnInput -= 1;
-    }
+    // 4. Steering (Section 6.2 & Milestone 15)
+    const store = useGameStore.getState();
+    const isCameraRelative = store.settings.controlMode === 'camera-relative';
 
     const turnFactor = clamp(
       currentSpeed / GAME_CONSTANTS.TURN_SPEED_REF,
@@ -223,7 +218,77 @@ export function Otter({ inputRef, tunables, track }: OtterProps) {
       GAME_CONSTANTS.TURN_FACTOR_MAX
     );
 
-    headingRef.current += turnInput * tunables.turnRate * dt * turnFactor;
+    let thrustReduction = 1.0;
+    let isDirectionKeyHeld = false;
+    let effectiveTurnInput = 0;
+
+    if (isCameraRelative) {
+      // Camera-relative mode: W, A, S, D relative to camera horizontal forward
+      const camYaw = sharedOtterRefs.cameraYaw;
+      const camFwdX = Math.sin(camYaw);
+      const camFwdZ = Math.cos(camYaw);
+      // In this coordinate system where heading 0 faces +Z and turning left is +X:
+      const camLeftX = Math.cos(camYaw);
+      const camLeftZ = -Math.sin(camYaw);
+
+      let dirX = 0;
+      let dirZ = 0;
+
+      if (allowSteering) {
+        if (input.forward) {
+          dirX += camFwdX;
+          dirZ += camFwdZ;
+        }
+        if (input.left) {
+          dirX += camLeftX;
+          dirZ += camLeftZ;
+        }
+        if (input.right) {
+          dirX -= camLeftX;
+          dirZ -= camLeftZ;
+        }
+      }
+
+      const inputLen = Math.hypot(dirX, dirZ);
+      if (inputLen > 0.001) {
+        isDirectionKeyHeld = true;
+        const desiredHeading = Math.atan2(dirX / inputLen, dirZ / inputLen);
+
+        let angleDiff = desiredHeading - headingRef.current;
+        while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+        while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+
+        effectiveTurnInput = clamp(angleDiff / 0.8, -1, 1);
+
+        const maxTurnStep = GAME_CONSTANTS.GENSHIN_TURN_RATE * dt * turnFactor;
+        if (Math.abs(angleDiff) <= maxTurnStep) {
+          headingRef.current = desiredHeading;
+        } else {
+          headingRef.current += Math.sign(angleDiff) * maxTurnStep;
+        }
+
+        // Thrust reduction when pointing > 90 degrees away from desired direction
+        const absDiff = Math.abs(angleDiff);
+        if (absDiff > Math.PI / 2) {
+          const excess = absDiff - Math.PI / 2;
+          const factor = Math.cos(excess);
+          thrustReduction =
+            GAME_CONSTANTS.GENSHIN_MIN_THRUST_FACTOR +
+            (1.0 - GAME_CONSTANTS.GENSHIN_MIN_THRUST_FACTOR) * Math.max(0, factor);
+        }
+      }
+    } else {
+      // Classic tank-style steering
+      let turnInput = 0;
+      if (allowSteering) {
+        if (input.left) turnInput += 1;
+        if (input.right) turnInput -= 1;
+      }
+      headingRef.current += turnInput * tunables.turnRate * dt * turnFactor;
+      effectiveTurnInput = turnInput;
+      isDirectionKeyHeld = Boolean(input.forward);
+    }
+
     const h = headingRef.current;
 
     // 5. Unit vectors for heading (facing +Z at h=0, screen-right is -X)
@@ -234,7 +299,7 @@ export function Otter({ inputRef, tunables, track }: OtterProps) {
     const rightX = -cosH;
     const rightZ = sinH;
 
-    // 6. Dash Trigger (Space edge detection)
+    // 6. Dash Trigger (Space/Shift edge detection)
     const spaceIsPressed = input.dash && allowDash;
     const dashJustPressed = spaceIsPressed && !prevSpacePressedRef.current;
     prevSpacePressedRef.current = spaceIsPressed;
@@ -252,16 +317,21 @@ export function Otter({ inputRef, tunables, track }: OtterProps) {
 
     const isDashBoostActive = dashBoostTimerRef.current > 0;
 
-    // 7. Thrust Acceleration (W / ArrowUp)
-    if (input.forward && allowThrust) {
-      const thrustMultiplier = isDashBoostActive ? tunables.dashThrustMult : 1.0;
+    // 7. Thrust Acceleration
+    const shouldThrust = isCameraRelative
+      ? (isDirectionKeyHeld && allowThrust)
+      : (input.forward && allowThrust);
+
+    if (shouldThrust) {
+      const thrustMultiplier = (isDashBoostActive ? tunables.dashThrustMult : 1.0) * thrustReduction;
       const accelMagnitude = tunables.accel * thrustMultiplier * dt;
       v.x += fwdX * accelMagnitude;
       v.z += fwdZ * accelMagnitude;
     }
 
-    // 8. Drag and Braking (S / ArrowDown applies extra drag without reversing)
-    const effectiveDrag = tunables.drag + (input.backward && allowThrust ? tunables.brakeDrag : 0);
+    // 8. Drag and Braking (S applies extra drag without reversing)
+    const isBraking = input.backward && allowThrust;
+    const effectiveDrag = tunables.drag + (isBraking ? tunables.brakeDrag : 0);
     const dragMultiplier = Math.exp(-effectiveDrag * dt);
     v.x *= dragMultiplier;
     v.z *= dragMultiplier;
@@ -397,7 +467,7 @@ export function Otter({ inputRef, tunables, track }: OtterProps) {
     }
 
     // 13. Visual Feedback (Cosmetic only, Section 6.2)
-    const targetRoll = -turnInput * GAME_CONSTANTS.ROLL_MAX;
+    const targetRoll = -effectiveTurnInput * GAME_CONSTANTS.ROLL_MAX;
     const rollBlend = 1 - Math.exp(-GAME_CONSTANTS.ROLL_DAMP * dt);
     currentRollRef.current += (targetRoll - currentRollRef.current) * rollBlend;
 
@@ -438,11 +508,11 @@ export function Otter({ inputRef, tunables, track }: OtterProps) {
       dashStreaksRef.current.visible = isDashBoostActive;
     }
 
-    // Update Shared Refs for CameraRig (Milestone 2)
+    // Update Shared Refs for CameraRig (Milestone 2 & 15)
     sharedOtterRefs.position.copy(pos);
     sharedOtterRefs.heading = headingRef.current;
     sharedOtterRefs.isDashing = isDashBoostActive;
-    sharedOtterRefs.isMovingForward = Boolean(input.forward && allowThrust);
+    sharedOtterRefs.isMovingForward = Boolean(shouldThrust);
 
     // Update Telemetry Store for live HUD without React re-renders
     otterTelemetry.speed = currentSpeed;

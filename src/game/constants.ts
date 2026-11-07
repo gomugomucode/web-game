@@ -80,6 +80,17 @@ export const GAME_CONSTANTS = {
   CAMERA_MIN_DISTANCE: 4.0, // Min zoom distance (m)
   CAMERA_MAX_DISTANCE: 12.0, // Max zoom distance (m)
 
+  // Genshin-Style Controls & Camera (Milestone 15)
+  GENSHIN_TURN_RATE: 7.5, // Base turn rate (rad/s) turning toward desired input direction
+  GENSHIN_MIN_THRUST_FACTOR: 0.2, // Minimum thrust factor when pointing > 90 deg away
+  CAMERA_ASSIST_IDLE_DELAY: 1.5, // Seconds of no mouse movement before camera assist engages
+  CAMERA_ASSIST_STRENGTH: 2.2, // Alignment rate toward river tangent
+  CAMERA_POINTER_SENSITIVITY: 0.0024, // Base radians per pointer lock mouse movement pixel
+  CAMERA_ARROW_KEY_SPEED_YAW: 2.4, // Radians/s for arrow keys rotating yaw
+  CAMERA_ARROW_KEY_SPEED_PITCH: 1.6, // Radians/s for arrow keys tilting pitch
+  CAMERA_PITCH_MIN: -0.35, // Min pitch (looking slightly upward from below, keeping above water)
+  CAMERA_PITCH_MAX: 1.15, // Max pitch (~66 degrees downward angle)
+
   // Visual Feedback (Cosmetic only)
   ROLL_MAX: 0.35, // Maximum bank angle (radians) during hard steering
   ROLL_DAMP: 6.0, // Exponential smoothing rate for banking roll
