@@ -72,6 +72,13 @@ export const GAME_CONSTANTS = {
   CAMERA_BASE_FOV: 60.0, // Field of view at rest
   CAMERA_DASH_FOV_BOOST: 10.0, // Up to +10 FOV during dash (reaching 70 FOV)
   CAMERA_FOV_SMOOTH_RATE: 5.0, // Easing rate for FOV transitions
+  CAMERA_MOUSE_HOVER_YAW_MAX: 0.45, // Max yaw offset (radians) from mouse hover position (~26 deg)
+  CAMERA_MOUSE_HOVER_PITCH_MAX: 0.2, // Max pitch offset (radians) from mouse hover position
+  CAMERA_DRAG_SENSITIVITY_X: 0.005, // Yaw change per pixel dragged
+  CAMERA_DRAG_SENSITIVITY_Y: 0.004, // Pitch change per pixel dragged
+  CAMERA_RECENTER_RATE: 2.5, // Smoothing rate to align camera behind otter when moving forward
+  CAMERA_MIN_DISTANCE: 4.0, // Min zoom distance (m)
+  CAMERA_MAX_DISTANCE: 12.0, // Max zoom distance (m)
 
   // Visual Feedback (Cosmetic only)
   ROLL_MAX: 0.35, // Maximum bank angle (radians) during hard steering

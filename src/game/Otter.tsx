@@ -141,6 +141,7 @@ export function Otter({ inputRef, tunables, track }: OtterProps) {
       sharedOtterRefs.position.copy(pos);
       sharedOtterRefs.heading = spawnHeading;
       sharedOtterRefs.isDashing = false;
+      sharedOtterRefs.isMovingForward = false;
       sharedOtterRefs.hasReset = true; // camera snap
 
       otterTelemetry.speed = 0;
@@ -441,6 +442,7 @@ export function Otter({ inputRef, tunables, track }: OtterProps) {
     sharedOtterRefs.position.copy(pos);
     sharedOtterRefs.heading = headingRef.current;
     sharedOtterRefs.isDashing = isDashBoostActive;
+    sharedOtterRefs.isMovingForward = Boolean(input.forward && allowThrust);
 
     // Update Telemetry Store for live HUD without React re-renders
     otterTelemetry.speed = currentSpeed;

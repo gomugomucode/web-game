@@ -11,6 +11,7 @@ export interface OtterSharedRefs {
   heading: number; // Yaw angle in radians, 0 = facing +Z
   isDashing: boolean;
   hasReset: boolean;
+  isMovingForward: boolean;
 }
 
 export const sharedOtterRefs: OtterSharedRefs = {
@@ -22,5 +23,6 @@ export const sharedOtterRefs: OtterSharedRefs = {
   heading: GAME_CONSTANTS.HUB_SPAWN_HEADING,
   isDashing: false,
   hasReset: false,
+  isMovingForward: false,
 };
 
