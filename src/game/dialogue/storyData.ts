@@ -161,3 +161,4 @@ export function getResultDialogue(
   }
   return RESULT_LINES.player4th;
 }
+
