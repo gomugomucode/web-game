@@ -361,18 +361,31 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
     const track = getTrack(state.activeTrackId);
 
     // Save record to persistent storage and check progression unlock
-    const { data, unlockedRiver02, unlockedRiver03, justCompletedRiver02Top3 } =
-      saveTrackRecord(state.activeTrackId, time, rank);
+    const {
+      data,
+      unlockedRiver02,
+      unlockedRiver03,
+      justCompletedRiver02Top3,
+      justCompletedStory,
+    } = saveTrackRecord(state.activeTrackId, time, rank);
 
     let unlockBanner: string | null = null;
     if (unlockedRiver02) {
       unlockBanner = UNLOCK_BANNERS.river02Unlocked;
     } else if (unlockedRiver03) {
-      // In Part 1, Track 3 (The Wellspring Run) does not exist yet
-      unlockBanner = UNLOCK_BANNERS.river03Part1;
+      unlockBanner = UNLOCK_BANNERS.river03Unlocked;
+    } else if (state.activeTrackId === 'river-03' && rank > 3) {
+      unlockBanner = UNLOCK_BANNERS.wellspringStirred;
     }
 
-    const showWisp = justCompletedRiver02Top3;
+    const showWispWhisper = justCompletedRiver02Top3;
+    const showWispAwakening = justCompletedStory;
+    const showDialogue = showWispAwakening || showWispWhisper;
+    const activeDialogueSceneId = showWispAwakening
+      ? 'wisp_awakening'
+      : showWispWhisper
+      ? 'wisp_whisper'
+      : null;
 
     set({
       phase: 'finished',
@@ -384,8 +397,8 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
       bestTimes: data.bestTimes,
       flags: data.flags,
       unlockBanner,
-      isDialogueOpen: showWisp,
-      activeDialogueSceneId: showWisp ? 'wisp_whisper' : null,
+      isDialogueOpen: showDialogue,
+      activeDialogueSceneId,
       dialogueIndex: 0,
       selectedChoiceIndex: 0,
       isPaused: false,

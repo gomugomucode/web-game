@@ -8,7 +8,7 @@ export interface SaveFlags {
   river02_unlocked: boolean;
   river02_done: boolean;
   river03_unlocked: boolean;
-  story_complete?: boolean;
+  story_complete: boolean;
 }
 
 export interface GameSettings {
@@ -45,6 +45,7 @@ export const DEFAULT_SAVE_DATA: Readonly<SaveData> = {
     river02_unlocked: false,
     river02_done: false,
     river03_unlocked: false,
+    story_complete: false,
   },
   settings: { ...DEFAULT_SETTINGS },
 };
@@ -80,11 +81,15 @@ export function loadSaveData(): SaveData {
           first_race_done: Boolean(parsed.flags?.first_race_done),
           river02_unlocked: Boolean(parsed.flags?.river02_unlocked || unlocked.includes('river-02')),
           river02_done: Boolean(parsed.flags?.river02_done),
-          river03_unlocked: Boolean(parsed.flags?.river03_unlocked),
+          river03_unlocked: Boolean(parsed.flags?.river03_unlocked || unlocked.includes('river-03')),
+          story_complete: Boolean(parsed.flags?.story_complete),
         };
 
         if (flags.river02_unlocked && !unlocked.includes('river-02')) {
           unlocked.push('river-02');
+        }
+        if (flags.river03_unlocked && !unlocked.includes('river-03')) {
+          unlocked.push('river-03');
         }
 
         // Migrate settings from version 1 or validate version 2 settings
@@ -143,6 +148,7 @@ export function loadSaveData(): SaveData {
         river02_unlocked: false,
         river02_done: false,
         river03_unlocked: false,
+        story_complete: false,
       },
       settings: { ...DEFAULT_SETTINGS },
     };
@@ -186,11 +192,13 @@ export function saveTrackRecord(
   unlockedRiver02: boolean;
   unlockedRiver03: boolean;
   justCompletedRiver02Top3: boolean;
+  justCompletedStory: boolean;
 } {
   const current = loadSaveData();
   let unlockedRiver02 = false;
   let unlockedRiver03 = false;
   let justCompletedRiver02Top3 = false;
+  let justCompletedStory = false;
 
   const prevBest = current.bestTimes[trackId];
   if (prevBest === undefined || time < prevBest) {
@@ -211,8 +219,18 @@ export function saveTrackRecord(
     if (!current.flags.river02_done) {
       current.flags.river02_done = true;
       current.flags.river03_unlocked = true;
+      if (!current.unlockedTracks.includes('river-03')) {
+        current.unlockedTracks.push('river-03');
+      }
       unlockedRiver03 = true;
       justCompletedRiver02Top3 = true;
+    }
+  }
+
+  if (trackId === 'river-03' && rank <= 3) {
+    if (!current.flags.story_complete) {
+      current.flags.story_complete = true;
+      justCompletedStory = true;
     }
   }
 
@@ -222,6 +240,7 @@ export function saveTrackRecord(
     unlockedRiver02,
     unlockedRiver03,
     justCompletedRiver02Top3,
+    justCompletedStory,
   };
 }
 

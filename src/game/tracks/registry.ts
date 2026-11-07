@@ -2,15 +2,17 @@ import * as THREE from 'three';
 import { Track } from './types';
 import { river01 } from './river01';
 import { river02 } from './river02';
+import { river03 } from './river03';
 import { smoothCenterline } from '../math';
 import { GAME_CONSTANTS } from '../constants';
 
 export const TRACK_REGISTRY: Record<string, Track> = {
   'river-01': river01,
   'river-02': river02,
+  'river-03': river03,
 };
 
-export const TRACK_LIST: Track[] = [river01, river02];
+export const TRACK_LIST: Track[] = [river01, river02, river03];
 
 export function getTrack(id: string): Track {
   return TRACK_REGISTRY[id] || river01;

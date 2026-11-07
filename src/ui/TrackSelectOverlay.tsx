@@ -27,7 +27,7 @@ export function TrackSelectOverlay() {
     [unlockedTracks, startRaceFromHub]
   );
 
-  // Keyboard navigation: Esc to close, 1 & 2 number keys to select
+  // Keyboard navigation: Esc to close, 1, 2 & 3 number keys to select
   useEffect(() => {
     if (!isTrackSelectOpen) return;
 
@@ -43,6 +43,11 @@ export function TrackSelectOverlay() {
         if (unlockedTracks.includes('river-02')) {
           handleSelectAndRace('river-02');
         }
+      } else if (e.code === 'Digit3' || e.key === '3') {
+        e.preventDefault();
+        if (unlockedTracks.includes('river-03')) {
+          handleSelectAndRace('river-03');
+        }
       }
     };
 
@@ -54,7 +59,7 @@ export function TrackSelectOverlay() {
 
   return (
     <div className="pointer-events-auto fixed inset-0 z-30 flex items-center justify-center bg-slate-950/75 backdrop-blur-md p-4 animate-in fade-in duration-200">
-      <div className="bg-slate-900/95 border-2 border-emerald-500/50 rounded-3xl p-6 sm:p-8 max-w-2xl w-full shadow-[0_0_60px_rgba(16,185,129,0.25)] text-white flex flex-col gap-6 animate-in zoom-in-95 duration-200">
+      <div className="bg-slate-900/95 border-2 border-emerald-500/50 rounded-3xl p-6 sm:p-8 max-w-4xl w-full shadow-[0_0_60px_rgba(16,185,129,0.25)] text-white flex flex-col gap-6 animate-in zoom-in-95 duration-200">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-white/10 pb-4">
           <div className="flex items-center gap-3">
@@ -79,7 +84,7 @@ export function TrackSelectOverlay() {
         </div>
 
         {/* Track List */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {TRACK_LIST.map((track, idx) => {
             const isUnlocked = unlockedTracks.includes(track.id);
             const isSelected = track.id === activeTrackId;

@@ -213,6 +213,7 @@ export function River({ track }: RiverProps) {
         rotationY={finishRotY}
         isNext={nextCheckpoint === finishCheckpointIndex && phase === 'racing'}
         isCompleted={nextCheckpoint > finishCheckpointIndex}
+        hasGlowingPool={track.id === 'river-03'}
       />
     </group>
   );
@@ -306,6 +307,11 @@ const finishLanternsGeo = (() => {
 const finishRingGeoNext = new THREE.TorusGeometry(3.4, 0.25, 12, 32);
 const finishRingGeoNormal = new THREE.TorusGeometry(3.4, 0.16, 12, 32);
 const finishBannerGeo = new THREE.PlaneGeometry(6.5, 1.1);
+const wellspringPoolGeo = (() => {
+  const geo = new THREE.RingGeometry(1.2, 7.8, 32);
+  geo.rotateX(-Math.PI / 2);
+  return geo;
+})();
 
 /**
  * Rustic wooden Start Gate
@@ -387,11 +393,13 @@ function FinishGate({
   rotationY,
   isNext,
   isCompleted,
+  hasGlowingPool = false,
 }: {
   position: [number, number, number];
   rotationY: number;
   isNext: boolean;
   isCompleted: boolean;
+  hasGlowingPool?: boolean;
 }) {
   const finishPostColor = isNext ? '#d97706' : isCompleted ? '#166534' : '#1e293b';
   const finishBannerColor = isNext ? '#10b981' : isCompleted ? '#059669' : '#0f172a';
@@ -421,6 +429,18 @@ function FinishGate({
       <mesh geometry={finishLanternsGeo}>
         <meshBasicMaterial color={isNext ? '#fbbf24' : '#10b981'} />
       </mesh>
+
+      {/* Sacred Wellspring Glowing Pool (Track 3) */}
+      {hasGlowingPool && (
+        <mesh position={[0, 0.04, 0]} geometry={wellspringPoolGeo}>
+          <meshBasicMaterial
+            color="#38bdf8"
+            transparent
+            opacity={0.65}
+            side={THREE.DoubleSide}
+          />
+        </mesh>
+      )}
     </group>
   );
 }

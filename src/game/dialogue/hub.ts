@@ -1,5 +1,5 @@
 import { SaveFlags } from '../saveSystem';
-import { WISP_WHISPER_SEQUENCE } from './storyData';
+import { WISP_WHISPER_SEQUENCE, WISP_AWAKENING_SEQUENCE } from './storyData';
 
 export interface DialogueChoice {
   text: string;
@@ -25,30 +25,68 @@ export interface DialogueSequence {
 /**
  * Hub Dialogue Sequences - Elder Moss (Section 6)
  * Selection checked from the top. The first match wins:
- * 1. river03_unlocked is true: Scene E-temp (Part 1 stopgap)
- * 2. river02_unlocked is true: Scene D
- * 3. first_race_done is true: Scene C
- * 4. met_mentor is true: Scene B
- * 5. Otherwise: Scene A
+ * 1. story_complete is true: Scene F (Epilogue, Part 2)
+ * 2. river03_unlocked is true: Scene E (Part 2)
+ * 3. river02_unlocked is true: Scene D
+ * 4. first_race_done is true: Scene C
+ * 5. met_mentor is true: Scene B
+ * 6. Otherwise: Scene A
  */
 export const hubDialogueSequences: DialogueSequence[] = [
-  // 1. Scene E-temp: river03 unlocked, Part 1 stopgap
+  // 1. Scene F: epilogue (Part 2) - story_complete is true
   {
-    id: 'scene_e_temp',
+    id: 'scene_f',
+    condition: (flags) => Boolean(flags.story_complete),
+    lines: [
+      {
+        id: 601,
+        speaker: 'Elder Moss',
+        text: 'The water sings again. Do you hear it? That’s you, little swimmer, and everyone you raced beside.',
+      },
+      {
+        id: 602,
+        speaker: 'Elder Moss',
+        text: 'The Run is yours now. Race for the record, race for the fun of it, or just float. The Heartstreams will remember.',
+        choices: [
+          { text: 'Race now!', action: 'track_select' },
+          { text: 'Just floating.', action: 'close' },
+        ],
+      },
+    ],
+  },
+
+  // 2. Scene E: river03 unlocked (Part 2)
+  {
+    id: 'scene_e',
     condition: (flags) => Boolean(flags.river03_unlocked),
     lines: [
       {
         id: 501,
         speaker: 'Elder Moss',
-        text: 'You woke Serpentine Rapids. I felt it from here, I swear.',
+        text: 'You did it. I felt the Heartstreams brighten from here, I swear.',
       },
       {
         id: 502,
         speaker: 'Elder Moss',
-        text: 'There is more river upstream, but the path is not ready yet. Come back soon, little swimmer.',
+        text: 'But the Dimstones didn’t vanish, did they? They are thickest upstream, toward the Wellspring, where the Run begins.',
+      },
+      {
+        id: 503,
+        speaker: 'Elder Moss',
+        text: 'The Wellspring has a keeper, an old spirit we call the Wisp. With stones this thick, she must be sleeping very deeply.',
+      },
+      {
+        id: 504,
+        speaker: 'Elder Moss',
+        text: 'The Wellspring Run is the oldest race in the valley, and the hardest. Everyone from the Haven will swim it with you.',
+      },
+      {
+        id: 505,
+        speaker: 'Elder Moss',
+        text: 'No pressure, little swimmer. Only a whole valley’s worth of river.',
         choices: [
-          { text: 'Race again!', action: 'track_select' },
-          { text: 'Just floating.', action: 'close' },
+          { text: 'Race now!', action: 'track_select' },
+          { text: 'Not yet.', action: 'close' },
         ],
       },
     ],
@@ -190,6 +228,9 @@ export function getActiveDialogue(
   if (overrideSceneId) {
     if (overrideSceneId === 'wisp_whisper') {
       return WISP_WHISPER_SEQUENCE.lines;
+    }
+    if (overrideSceneId === 'wisp_awakening') {
+      return WISP_AWAKENING_SEQUENCE.lines;
     }
     const found = hubDialogueSequences.find((s) => s.id === overrideSceneId);
     if (found) return found.lines;
