@@ -142,7 +142,7 @@ export const river03: Track = {
     // Hazards along Current 2 (staggered around wide apex)
     { id: 'h3_c2_1', pos: [63.0, 160.0], radius: 1.2 },
     { id: 'h3_c2_2', pos: [69.0, 192.0], radius: 1.2 },
-    { id: 'h3_c2_3', pos: [54.0, 228.0], radius: 1.2 },
+    { id: 'h3_c2_3', pos: [51.0, 231.0], radius: 1.2 },
 
     // Hazards along Hairpin Bend (Current 3)
     { id: 'h3_c3_1', pos: [-16.0, 296.0], radius: 1.2 },
