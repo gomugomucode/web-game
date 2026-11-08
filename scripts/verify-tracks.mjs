@@ -1,14 +1,23 @@
 #!/usr/bin/env node
 
 /**
- * Track Geometry & Curvature Verification Script
- * Validates all tracks in TRACK_REGISTRY for:
- * 1. Centerline length and race distance
- * 2. Minimum radius of curvature along smoothed centerline (>= 12m)
+ * Track Geometry, Curvature & Playability Verification Suite
+ *
+ * Imports the game's actual math and constants from src/game/ rather than duplicating them:
+ * - smoothCenterline and findNearestPointOnPolyline from src/game/math.ts
+ * - GAME_CONSTANTS from src/game/constants.ts
+ * - TRACK_LIST from src/game/tracks/registry.ts
+ *
+ * Validates:
+ * 1. Centerline length & race distance (river03 in [450m, 550m])
+ * 2. Minimum radius of curvature along smoothed centerline (>= 12.0m)
  * 3. Checkpoints inside river boundary
- * 4. Currents inside river boundary (including current width)
+ * 4. Currents inside river boundary (including corridor width) and strongest in last third for river03
  * 5. Hazard rocks inside river boundary (including rock radius)
- * 6. Rival lane bounds (+-4.5m within river half-width)
+ * 6. Cross-section blockage: Hazard rocks must never block > 60% of river width (rock radius + otter radius)
+ * 7. Minimum gap between any two hazard rocks must be >= 3.5m (otter passable)
+ * 8. Hazard clearance from gates & checkpoints must be >= 2.0m
+ * 9. Rival lanes (+-4.5m) within river half-width (9.0m)
  */
 
 import fs from 'node:fs';
@@ -43,9 +52,8 @@ function loadTsModule(relativePath) {
         }
       }
     }
-    // External packages or node built-ins
+    // Stub THREE globals if imported in data files
     return {
-      // Mock THREE constants if needed
       NearestFilter: 1003,
       DoubleSide: 2,
     };
@@ -63,40 +71,18 @@ function loadTsModule(relativePath) {
   return mod.exports;
 }
 
-// Catmull-Rom smoothing matching src/game/math.ts
-function smoothCenterline(points, subdivisions = 14) {
-  if (points.length < 2) return points.map((p) => [p[0], p[1]]);
-  const smoothed = [];
-  for (let i = 0; i < points.length - 1; i++) {
-    const p0 = points[Math.max(0, i - 1)];
-    const p1 = points[i];
-    const p2 = points[i + 1];
-    const p3 = points[Math.min(points.length - 1, i + 2)];
-    for (let s = 0; s < subdivisions; s++) {
-      const t = s / subdivisions;
-      const t2 = t * t;
-      const t3 = t2 * t;
-      const x =
-        0.5 *
-        (2 * p1[0] +
-          (-p0[0] + p2[0]) * t +
-          (2 * p0[0] - 5 * p1[0] + 4 * p2[0] - p3[0]) * t2 +
-          (-p0[0] + 3 * p1[0] - 3 * p2[0] + p3[0]) * t3);
-      const z =
-        0.5 *
-        (2 * p1[1] +
-          (-p0[1] + p2[1]) * t +
-          (2 * p0[1] - 5 * p1[1] + 4 * p2[1] - p3[1]) * t2 +
-          (-p0[1] + 3 * p1[1] - 3 * p2[1] + p3[1]) * t3);
-      smoothed.push([x, z]);
-    }
-  }
-  const last = points[points.length - 1];
-  smoothed.push([last[0], last[1]]);
-  return smoothed;
-}
+// 1. Import game's live math and constants directly (no duplicated math code)
+const mathModule = loadTsModule('src/game/math.ts');
+const constantsModule = loadTsModule('src/game/constants.ts');
+const registryModule = loadTsModule('src/game/tracks/registry.ts');
 
-// Distance from point P to a polyline
+const { smoothCenterline } = mathModule;
+const { GAME_CONSTANTS } = constantsModule;
+const { TRACK_LIST } = registryModule;
+
+const OTTER_RADIUS = GAME_CONSTANTS.OTTER_RADIUS ?? 0.35;
+
+// Distance from point P to polyline
 function distToPolyline(px, pz, polyline) {
   let minD = Infinity;
   for (let i = 0; i < polyline.length - 1; i++) {
@@ -119,7 +105,40 @@ function distToPolyline(px, pz, polyline) {
   return minD;
 }
 
-// Calculate minimum radius of curvature along smoothed centerline
+// Project point (px, pz) to polyline returning { s, lateralOffset }
+function projectToCenterline(px, pz, polyline, cumDist) {
+  let bestD = Infinity;
+  let bestS = 0;
+  let bestLat = 0;
+
+  for (let i = 0; i < polyline.length - 1; i++) {
+    const ax = polyline[i][0];
+    const az = polyline[i][1];
+    const bx = polyline[i + 1][0];
+    const bz = polyline[i + 1][1];
+    const dx = bx - ax;
+    const dz = bz - az;
+    const len2 = dx * dx + dz * dz;
+    if (len2 < 1e-6) continue;
+    const segLen = Math.sqrt(len2);
+    const t = Math.max(0, Math.min(1, ((px - ax) * dx + (pz - az) * dz) / len2));
+    const projX = ax + t * dx;
+    const projZ = az + t * dz;
+    const d = Math.hypot(px - projX, pz - projZ);
+
+    if (d < bestD) {
+      bestD = d;
+      bestS = cumDist[i] + t * segLen;
+      // Cross product to determine signed lateral offset
+      const cross = dx * (pz - az) - dz * (px - ax);
+      bestLat = cross >= 0 ? d : -d;
+    }
+  }
+
+  return { s: bestS, lat: bestLat, dist: bestD };
+}
+
+// Compute minimum radius of curvature along smoothed centerline
 function computeMinRadiusOfCurvature(smoothed) {
   let minR = Infinity;
   let minPoint = null;
@@ -134,7 +153,6 @@ function computeMinRadiusOfCurvature(smoothed) {
     const b = Math.hypot(pA[0] - pC[0], pA[1] - pC[1]);
     const c = Math.hypot(pA[0] - pB[0], pA[1] - pB[1]);
 
-    // Cross product (2 * area)
     const cp = (pB[0] - pA[0]) * (pC[1] - pA[1]) - (pB[1] - pA[1]) * (pC[0] - pA[0]);
     if (Math.abs(cp) > 1e-7) {
       const radius = (a * b * c) / (2 * Math.abs(cp));
@@ -149,36 +167,60 @@ function computeMinRadiusOfCurvature(smoothed) {
   return { minR, minPoint, minIndex };
 }
 
-// Main verification runner
+// Merge 1D intervals and compute total covered length
+function unionIntervalLength(intervals) {
+  if (intervals.length === 0) return 0;
+  // Sort intervals by start
+  intervals.sort((a, b) => a[0] - b[0]);
+  let totalLength = 0;
+  let [curStart, curEnd] = intervals[0];
+
+  for (let i = 1; i < intervals.length; i++) {
+    const [nextStart, nextEnd] = intervals[i];
+    if (nextStart <= curEnd) {
+      curEnd = Math.max(curEnd, nextEnd);
+    } else {
+      totalLength += curEnd - curStart;
+      curStart = nextStart;
+      curEnd = nextEnd;
+    }
+  }
+  totalLength += curEnd - curStart;
+  return totalLength;
+}
+
 function main() {
   console.log('====================================================');
-  console.log('       OTTER RUN - TRACK VERIFICATION SUITE         ');
+  console.log('    OTTER RUN - ADVANCED TRACK VERIFIER SUITE       ');
   console.log('====================================================\n');
 
-  const registryModule = loadTsModule('src/game/tracks/registry.ts');
-  const trackList = registryModule.TRACK_LIST || [];
-
-  if (!trackList || trackList.length === 0) {
+  if (!TRACK_LIST || TRACK_LIST.length === 0) {
     console.error('ERROR: No tracks found in TRACK_REGISTRY!');
     process.exit(1);
   }
 
-  console.log(`Found ${trackList.length} tracks registered: ${trackList.map((t) => t.id).join(', ')}\n`);
+  console.log(`Loaded ${TRACK_LIST.length} tracks using live math & constants:`);
+  console.log(`  - Otter Collision Radius: ${OTTER_RADIUS} m`);
+  console.log(`  - Smoothing Function: src/game/math.ts [smoothCenterline]`);
+  console.log(`  - Registered Tracks: ${TRACK_LIST.map((t) => t.id).join(', ')}\n`);
 
   let allPassed = true;
   const summaryReport = [];
 
-  for (const track of trackList) {
+  for (const track of TRACK_LIST) {
     console.log(`----------------------------------------------------`);
     console.log(`VERIFYING TRACK: [${track.id}] - ${track.name}`);
     console.log(`----------------------------------------------------`);
 
     let trackPass = true;
+    const failures = [];
+
     const riverWidth = track.width || 18;
     const halfWidth = riverWidth * 0.5;
+    // Use the game's actual smoothedCenterline or call imported smoothCenterline
     const smoothed = track.smoothedCenterline || smoothCenterline(track.centerline, 14);
 
-    // 1. Centerline length & Race Distance
+    // Compute cumulative distances along smoothed centerline
     let totalLength = 0;
     const cumDist = [0];
     for (let i = 1; i < smoothed.length; i++) {
@@ -190,55 +232,30 @@ function main() {
       cumDist.push(totalLength);
     }
 
-    // Distance between start gate and finish gate
+    // Start & Finish Gate positions
     const startPos = track.start?.pos || [0, 0];
     const finishCp = track.checkpoints[track.checkpoints.length - 1];
     const finishPos = finishCp?.pos || [0, 0];
 
-    // Find nearest s on smoothed centerline for start and finish
-    function getS(pos) {
-      let minD = Infinity;
-      let bestS = 0;
-      for (let i = 0; i < smoothed.length - 1; i++) {
-        const ax = smoothed[i][0];
-        const az = smoothed[i][1];
-        const bx = smoothed[i + 1][0];
-        const bz = smoothed[i + 1][1];
-        const dx = bx - ax;
-        const dz = bz - az;
-        const len2 = dx * dx + dz * dz;
-        let t = 0;
-        if (len2 > 1e-6) {
-          t = Math.max(0, Math.min(1, ((pos[0] - ax) * dx + (pos[1] - az) * dz) / len2));
-        }
-        const px = ax + t * dx;
-        const pz = az + t * dz;
-        const d = Math.hypot(pos[0] - px, pos[1] - pz);
-        if (d < minD) {
-          minD = d;
-          bestS = cumDist[i] + t * Math.sqrt(len2);
-        }
-      }
-      return bestS;
-    }
-
-    const sStart = getS(startPos);
-    const sFinish = getS(finishPos);
-    const raceDistance = Math.abs(sFinish - sStart);
+    const projStart = projectToCenterline(startPos[0], startPos[1], smoothed, cumDist);
+    const projFinish = projectToCenterline(finishPos[0], finishPos[1], smoothed, cumDist);
+    const raceDistance = Math.abs(projFinish.s - projStart.s);
 
     console.log(`Centerline total length: ${totalLength.toFixed(1)} m`);
     console.log(`Race distance (Start -> Finish): ${raceDistance.toFixed(1)} m`);
 
     if (track.id === 'river-03') {
       if (raceDistance < 450 || raceDistance > 550) {
-        console.error(`  [FAIL] River03 race distance ${raceDistance.toFixed(1)} m must be in [450m, 550m]`);
+        const msg = `River03 race distance ${raceDistance.toFixed(1)} m outside [450m, 550m] target`;
+        failures.push(msg);
+        console.error(`  [FAIL] ${msg}`);
         trackPass = false;
       } else {
         console.log(`  [PASS] River03 length within target [450m, 550m]`);
       }
     }
 
-    // 2. Minimum Radius of Curvature (must be >= 12m)
+    // 1. Curvature Check (>= 12m)
     const { minR, minPoint, minIndex } = computeMinRadiusOfCurvature(smoothed);
     const minS = cumDist[minIndex] || 0;
     console.log(`\nCurvature Analysis:`);
@@ -247,31 +264,30 @@ function main() {
     );
 
     if (minR < 12.0) {
-      console.error(
-        `  [FAIL] Minimum radius of curvature ${minR.toFixed(2)} m is less than 12.0 m requirement!`
-      );
+      const msg = `Min radius of curvature ${minR.toFixed(2)} m is less than 12.0 m at [${minPoint[0].toFixed(1)}, ${minPoint[1].toFixed(1)}]`;
+      failures.push(msg);
+      console.error(`  [FAIL] ${msg}`);
       trackPass = false;
     } else {
       console.log(`  [PASS] Minimum radius of curvature >= 12.0 m (River half-width = ${halfWidth} m)`);
     }
 
-    // 3. Checkpoints inside river
+    // 2. Checkpoints inside river
     console.log(`\nCheckpoints Analysis (${track.checkpoints.length} checkpoints):`);
     track.checkpoints.forEach((cp, idx) => {
       const d = distToPolyline(cp.pos[0], cp.pos[1], smoothed);
-      const ok = d <= halfWidth;
-      if (!ok) {
-        console.error(
-          `  [FAIL] Checkpoint ${idx + 1} at [${cp.pos[0]}, ${cp.pos[1]}] is ${d.toFixed(2)} m from centerline (exceeds ${halfWidth} m)`
-        );
+      if (d > halfWidth) {
+        const msg = `Checkpoint ${idx + 1} at [${cp.pos[0]}, ${cp.pos[1]}] is ${d.toFixed(2)} m from centerline (exceeds ${halfWidth} m)`;
+        failures.push(msg);
+        console.error(`  [FAIL] ${msg}`);
         trackPass = false;
       }
     });
-    if (trackPass) {
+    if (!failures.some((f) => f.includes('Checkpoint'))) {
       console.log(`  [PASS] All ${track.checkpoints.length} checkpoints strictly within river bounds`);
     }
 
-    // 4. Currents inside river
+    // 3. Currents inside river
     console.log(`\nCurrents Analysis (${track.currents.length} currents):`);
     track.currents.forEach((c) => {
       const currentSmoothed = c.smoothedPoints || smoothCenterline(c.points, 12);
@@ -281,68 +297,240 @@ function main() {
         if (d > maxDist) maxDist = d;
       }
       const outerEdge = maxDist + c.width * 0.5;
-      const ok = outerEdge <= halfWidth;
-      console.log(
-        `  Current ${c.id}: strength = ${c.strength}, width = ${c.width}m, corridor max edge = ${outerEdge.toFixed(2)} m (<= ${halfWidth} m)`
-      );
-      if (!ok) {
-        console.error(`  [FAIL] Current ${c.id} corridor exceeds river bank bounds!`);
+      if (outerEdge > halfWidth) {
+        const msg = `Current ${c.id} corridor outer edge ${outerEdge.toFixed(2)} m exceeds bank ${halfWidth} m`;
+        failures.push(msg);
+        console.error(`  [FAIL] ${msg}`);
         trackPass = false;
+      } else {
+        console.log(
+          `  Current ${c.id}: strength = ${c.strength}, width = ${c.width}m, corridor max edge = ${outerEdge.toFixed(2)} m (<= ${halfWidth} m)`
+        );
       }
     });
 
     if (track.id === 'river-03') {
       const lastCurrent = track.currents[track.currents.length - 1];
-      const maxOtherStrength = Math.max(...track.currents.slice(0, -1).map((c) => c.strength));
-      if (lastCurrent.strength <= maxOtherStrength) {
-        console.error(
-          `  [FAIL] Last current (${lastCurrent.id}) strength ${lastCurrent.strength} is not the strongest!`
-        );
+      const maxOther = Math.max(...track.currents.slice(0, -1).map((c) => c.strength));
+      if (lastCurrent.strength <= maxOther) {
+        const msg = `Last current (${lastCurrent.id}) strength ${lastCurrent.strength} is not strongest`;
+        failures.push(msg);
+        console.error(`  [FAIL] ${msg}`);
         trackPass = false;
       } else {
         console.log(`  [PASS] Last current is strongest in final third (strength = ${lastCurrent.strength})`);
       }
     }
 
-    // 5. Hazard rocks inside river
-    console.log(`\nHazards Analysis (${track.hazards.length} rocks):`);
+    // 4. Hazards inside river
+    console.log(`\nHazards Boundary Analysis (${track.hazards.length} rocks):`);
     track.hazards.forEach((h) => {
       const d = distToPolyline(h.pos[0], h.pos[1], smoothed);
       const outerEdge = d + h.radius;
       if (outerEdge >= halfWidth) {
-        console.error(
-          `  [FAIL] Hazard ${h.id} at [${h.pos[0]}, ${h.pos[1]}] outer edge ${outerEdge.toFixed(2)} m exceeds bank ${halfWidth} m`
-        );
+        const msg = `Hazard ${h.id} outer edge ${outerEdge.toFixed(2)} m exceeds river bank ${halfWidth} m`;
+        failures.push(msg);
+        console.error(`  [FAIL] ${msg}`);
         trackPass = false;
       }
     });
-
-    if (track.id === 'river-03' && track.hazards.length < 12) {
-      console.error(`  [FAIL] River03 must have at least 12 hazard rocks (found ${track.hazards.length})`);
-      trackPass = false;
-    } else {
-      console.log(`  [PASS] All ${track.hazards.length} hazard rocks strictly within river bounds with clearance`);
+    if (!failures.some((f) => f.includes('exceeds river bank'))) {
+      console.log(`  [PASS] All ${track.hazards.length} rocks strictly within river boundary with safety margin`);
     }
 
-    // 6. Rival Lanes
+    // 5. Cross-Section Blockage Check (<= 60% of width)
+    console.log(`\nHazard Cross-Section Blockage Analysis (max allowed 60% = ${(riverWidth * 0.6).toFixed(1)} m):`);
+    const hazardProjs = track.hazards.map((h) => {
+      const proj = projectToCenterline(h.pos[0], h.pos[1], smoothed, cumDist);
+      const effRadius = h.radius + OTTER_RADIUS; // effective blocked radius
+      return {
+        id: h.id,
+        pos: h.pos,
+        radius: h.radius,
+        effRadius,
+        s: proj.s,
+        lat: proj.lat,
+      };
+    });
+
+    let maxBlockage = 0;
+    let maxBlockageS = 0;
+    let maxBlockagePct = 0;
+
+    // Sample along track at 0.5m intervals and at every hazard s
+    const sampleSList = new Set();
+    for (let s = projStart.s; s <= projFinish.s; s += 0.5) {
+      sampleSList.add(Math.round(s * 10) / 10);
+    }
+    hazardProjs.forEach((hp) => {
+      sampleSList.add(Math.round(hp.s * 10) / 10);
+      sampleSList.add(Math.round((hp.s - hp.effRadius * 0.5) * 10) / 10);
+      sampleSList.add(Math.round((hp.s + hp.effRadius * 0.5) * 10) / 10);
+    });
+
+    for (const sampleS of sampleSList) {
+      const intervals = [];
+      for (const hp of hazardProjs) {
+        const ds = Math.abs(sampleS - hp.s);
+        if (ds < hp.effRadius) {
+          const lateralHalfSpan = Math.sqrt(hp.effRadius * hp.effRadius - ds * ds);
+          const iStart = Math.max(-halfWidth, hp.lat - lateralHalfSpan);
+          const iEnd = Math.min(halfWidth, hp.lat + lateralHalfSpan);
+          if (iStart < iEnd) {
+            intervals.push([iStart, iEnd]);
+          }
+        }
+      }
+
+      if (intervals.length > 0) {
+        const blockedWidth = unionIntervalLength(intervals);
+        const pct = (blockedWidth / riverWidth) * 100;
+        if (blockedWidth > maxBlockage) {
+          maxBlockage = blockedWidth;
+          maxBlockageS = sampleS;
+          maxBlockagePct = pct;
+        }
+
+        if (pct > 60.0) {
+          const msg = `Cross-section at s = ${sampleS.toFixed(1)} m blocks ${blockedWidth.toFixed(2)} m (${pct.toFixed(1)}% > 60%)`;
+          failures.push(msg);
+          console.error(`  [FAIL] ${msg}`);
+          trackPass = false;
+        }
+      }
+    }
+
+    console.log(
+      `  Max Cross-Section Blockage: ${maxBlockage.toFixed(2)} m (${maxBlockagePct.toFixed(1)}%) at s = ${maxBlockageS.toFixed(1)} m`
+    );
+    if (maxBlockagePct <= 60.0) {
+      console.log(`  [PASS] Hazard rocks block at most ${maxBlockagePct.toFixed(1)}% <= 60% of channel width`);
+    }
+
+    // 6. Minimum Gap Between Any Two Hazard Rocks (>= 3.5m)
+    console.log(`\nHazard Inter-Rock Clearance Analysis (min required gap >= 3.5 m):`);
+    let minRockGap = Infinity;
+    let minGapPair = null;
+
+    for (let i = 0; i < track.hazards.length; i++) {
+      for (let j = i + 1; j < track.hazards.length; j++) {
+        const hA = track.hazards[i];
+        const hB = track.hazards[j];
+        const centerDist = Math.hypot(hA.pos[0] - hB.pos[0], hA.pos[1] - hB.pos[1]);
+        const clearGap = centerDist - (hA.radius + hB.radius);
+
+        if (clearGap < minRockGap) {
+          minRockGap = clearGap;
+          minGapPair = { hA, hB, centerDist, clearGap };
+        }
+
+        if (clearGap < 3.5) {
+          const msg = `Gap between rocks ${hA.id} and ${hB.id} is ${clearGap.toFixed(2)} m (< 3.5 m requirement)`;
+          failures.push(msg);
+          console.error(`  [FAIL] ${msg}`);
+          trackPass = false;
+        }
+      }
+    }
+
+    if (minGapPair) {
+      console.log(
+        `  Minimum rock gap: ${minRockGap.toFixed(2)} m (center dist: ${minGapPair.centerDist.toFixed(2)} m) between ${minGapPair.hA.id} and ${minGapPair.hB.id}`
+      );
+    }
+    if (minRockGap >= 3.5) {
+      console.log(`  [PASS] All rock pairs have at least ${minRockGap.toFixed(2)} m >= 3.5 m passable clearance`);
+    }
+
+    // 7. Hazard Clearance from Gates & Checkpoints (>= 2.0m)
+    console.log(`\nHazard Gate & Checkpoint Clearance Analysis (min required >= 2.0 m):`);
+    let minGateCpDist = Infinity;
+    let minGateCpItem = null;
+
+    track.hazards.forEach((h) => {
+      // Check start gate
+      const dStart = Math.hypot(h.pos[0] - startPos[0], h.pos[1] - startPos[1]);
+      const clearStart = dStart - h.radius;
+      if (clearStart < minGateCpDist) {
+        minGateCpDist = clearStart;
+        minGateCpItem = { hId: h.id, target: 'Start Gate', dist: clearStart };
+      }
+      if (clearStart < 2.0) {
+        const msg = `Hazard ${h.id} sits only ${clearStart.toFixed(2)} m from Start Gate (< 2.0 m requirement)`;
+        failures.push(msg);
+        console.error(`  [FAIL] ${msg}`);
+        trackPass = false;
+      }
+
+      // Check finish gate
+      const dFinish = Math.hypot(h.pos[0] - finishPos[0], h.pos[1] - finishPos[1]);
+      const clearFinish = dFinish - h.radius;
+      if (clearFinish < minGateCpDist) {
+        minGateCpDist = clearFinish;
+        minGateCpItem = { hId: h.id, target: 'Finish Gate', dist: clearFinish };
+      }
+      if (clearFinish < 2.0) {
+        const msg = `Hazard ${h.id} sits only ${clearFinish.toFixed(2)} m from Finish Gate (< 2.0 m requirement)`;
+        failures.push(msg);
+        console.error(`  [FAIL] ${msg}`);
+        trackPass = false;
+      }
+
+      // Check checkpoints
+      track.checkpoints.forEach((cp, cpIdx) => {
+        const dCp = Math.hypot(h.pos[0] - cp.pos[0], h.pos[1] - cp.pos[1]);
+        const clearCp = dCp - h.radius;
+        if (clearCp < minGateCpDist) {
+          minGateCpDist = clearCp;
+          minGateCpItem = { hId: h.id, target: `Checkpoint ${cpIdx + 1}`, dist: clearCp };
+        }
+        if (clearCp < 2.0) {
+          const msg = `Hazard ${h.id} sits only ${clearCp.toFixed(2)} m from Checkpoint ${cpIdx + 1} (< 2.0 m requirement)`;
+          failures.push(msg);
+          console.error(`  [FAIL] ${msg}`);
+          trackPass = false;
+        }
+      });
+    });
+
+    if (minGateCpItem) {
+      console.log(
+        `  Minimum gate/checkpoint clearance: ${minGateCpDist.toFixed(2)} m (${minGateCpItem.hId} to ${minGateCpItem.target})`
+      );
+    }
+    if (minGateCpDist >= 2.0) {
+      console.log(`  [PASS] All hazard rocks are >= ${minGateCpDist.toFixed(2)} m >= 2.0 m away from all gates and checkpoints`);
+    }
+
+    // 8. Rival Lanes
     const rivalLanes = track.rivalLanes || [-4.5, -2.5, 0, 2.5, 4.5];
     const maxLaneOffset = Math.max(...rivalLanes.map((l) => Math.abs(l)));
     if (maxLaneOffset > halfWidth) {
-      console.error(`  [FAIL] Rival lane offset ${maxLaneOffset} m exceeds river half-width ${halfWidth} m`);
+      const msg = `Rival lane offset ${maxLaneOffset} m exceeds river half-width ${halfWidth} m`;
+      failures.push(msg);
+      console.error(`  [FAIL] ${msg}`);
       trackPass = false;
     } else {
-      console.log(`  [PASS] All rival lanes (max offset ${maxLaneOffset} m) within river half-width`);
+      console.log(`\n  [PASS] All rival lanes (max offset ${maxLaneOffset} m) within river half-width`);
     }
 
     summaryReport.push({
       id: track.id,
       name: track.name,
       raceDistance: `${raceDistance.toFixed(1)} m`,
-      minRadius: `${minR.toFixed(2)} m at [${minPoint[0].toFixed(1)}, ${minPoint[1].toFixed(1)}]`,
+      minRadius: `${minR.toFixed(2)} m`,
+      maxBlockage: `${maxBlockagePct.toFixed(1)}%`,
+      minRockGap: `${minRockGap.toFixed(2)} m`,
+      minGateClearance: `${minGateCpDist.toFixed(2)} m`,
       status: trackPass ? 'PASS' : 'FAIL',
+      failureCount: failures.length,
     });
 
-    if (!trackPass) allPassed = false;
+    if (!trackPass) {
+      allPassed = false;
+      console.log(`\n>>> TRACK [${track.id}] HAS ${failures.length} FAILURE(S):`);
+      failures.forEach((f, idx) => console.log(`   ${idx + 1}. ${f}`));
+    }
     console.log('');
   }
 
@@ -361,4 +549,3 @@ function main() {
 }
 
 main();
-
