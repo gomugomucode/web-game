@@ -58,6 +58,26 @@ export const RIVAL_READY_LINES: Record<string, RivalReadyLine[]> = {
       text: "Ride the stream, weave the stones, don’t blink. Race you.",
     },
   ],
+  'river-03': [
+    {
+      speaker: 'Pip',
+      rivalId: 'rival_pip',
+      color: '#38bdf8',
+      text: "Everybody’s here! The whole Haven! I’m only a little nervous!",
+    },
+    {
+      speaker: 'Barnaby',
+      rivalId: 'rival_barnaby',
+      color: '#34d399',
+      text: "Steady strokes, everyone. Let’s wake her up gently.",
+    },
+    {
+      speaker: 'Luna',
+      rivalId: 'rival_luna',
+      color: '#fb7185',
+      text: "We all swim the last stretch together. Still, I’m winning.",
+    },
+  ],
 };
 
 /**
@@ -128,6 +148,42 @@ export const WISP_WHISPER_SEQUENCE: DialogueSequence = {
       id: 902,
       speaker: 'Wisp',
       text: '…the stream is so quiet…',
+    },
+  ],
+};
+
+/**
+ * Section 9: Wisp awakening sequence (Part 2)
+ * Triggered once when The Wellspring Run is first finished in the top 3 (story_complete).
+ */
+export const WISP_AWAKENING_SEQUENCE: DialogueSequence = {
+  id: 'wisp_awakening',
+  condition: () => false,
+  lines: [
+    {
+      id: 911,
+      speaker: 'Wisp',
+      text: '…Who rides my stream? It has been so long since anyone rode my stream.',
+    },
+    {
+      id: 912,
+      speaker: 'Wisp',
+      text: 'Little swimmer. I felt every ripple you made. And the others behind you, laughing.',
+    },
+    {
+      id: 913,
+      speaker: 'Wisp',
+      text: 'I slept because the Run grew quiet. Quiet streams forget. Forgotten stones grow.',
+    },
+    {
+      id: 914,
+      speaker: 'Wisp',
+      text: 'Keep racing, all of you. A river is a song, and a song needs singers.',
+    },
+    {
+      id: 915,
+      speaker: 'Wisp',
+      text: 'Thank you. Now go. The current will carry you home.',
     },
   ],
 };
