@@ -272,19 +272,22 @@ This document records all user task prompts, instructions, requirements, and the
 All changes across all milestones have been verified using the project's standard verification toolchain:
 
 ```bash
-# 1. Type check
+# 1. Track geometry & curvature check across all tracks
+npm run verify:tracks
+
+# 2. Type check
 npx tsc --noEmit
 
-# 2. Linter check
+# 3. Linter check
 npm run lint
 
-# 3. Production compilation
+# 4. Production compilation
 npm run build
 
-# 4. Production server verification
+# 5. Production server verification
 npm run start
 
-# 5. Automated headless browser verification suite
+# 6. Automated headless browser verification suite
 node scratch/verify_milestone_14.mjs
 node scratch/verify_milestone_15.mjs
 ```

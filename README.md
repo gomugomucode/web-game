@@ -178,6 +178,9 @@ npm run start
 ### Code Quality Verification
 
 ```bash
+# Track geometry, curvature & bounds verification
+npm run verify:tracks
+
 # TypeScript strict type checking
 npx tsc --noEmit
 
@@ -193,6 +196,8 @@ npm run lint
 ├── docs/
 │   └── OTTER_MODEL_BRIEF.md         # 3D artist brief for stylized rigged otter character
 ├── public/                          # Static assets and icons
+├── scripts/
+│   └── verify-tracks.mjs            # Track geometry, curvature and bounds verification
 ├── src/
 │   ├── app/
 │   │   ├── layout.tsx               # Root application layout

@@ -66,6 +66,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
   - Added banner for 4th place finish on river-03: `"The Wellspring glows faintly. Swim once more."`.
 - **Sacred Finish Arch Glowing Pool**:
   - Added `wellspringPoolGeo` emissive cyan disc/ring beneath the final finish gate on `river-03` with zero dynamic draw call cost.
+- **Track Verification Suite (`scripts/verify-tracks.mjs`)**:
+  - Standalone verification script checking all registered tracks for river boundary compliance, checkpoint positions, current corridors, hazard clearances, and minimum radius of curvature ($R \ge 12.0\text{ m}$).
+  - Added `npm run verify:tracks` script to `package.json`.
 - **Performance Verification**:
   - Hub: 21 draw calls (150 FPS), River 01: 40 draw calls (150 FPS), River 02: 50 draw calls (149 FPS), River 03: 55 draw calls (150 FPS). All well below the 80 draw call budget.
 
