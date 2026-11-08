@@ -282,3 +282,4 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
   - Real-time parameter tweaking for acceleration, drag, drift damping, and turn rates.
 - **Decoupled Telemetry HUD**:
   - Real-time speedometer, heading compass, and dash cooldown indicator.
+
