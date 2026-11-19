@@ -26,6 +26,20 @@ export function formatTime(ms: number | null): string {
   return `${mm}:${ss}.${mmm}`;
 }
 
+export function formatBindingKey(code: string | undefined): string {
+  if (!code) return '';
+  if (code.startsWith('Key')) return code.slice(3);
+  if (code.startsWith('Digit')) return code.slice(5);
+  if (code === 'Space') return 'Space';
+  if (code === 'ShiftLeft' || code === 'ShiftRight') return 'Shift';
+  if (code === 'Escape') return 'Esc';
+  if (code === 'ArrowUp') return '↑';
+  if (code === 'ArrowDown') return '↓';
+  if (code === 'ArrowLeft') return '←';
+  if (code === 'ArrowRight') return '→';
+  return code;
+}
+
 export function Hud({ tunables }: HudProps) {
   // Slow state from zustand for UI panels
   const mode = useGameStore((state) => state.mode);
@@ -527,34 +541,48 @@ export function Hud({ tunables }: HudProps) {
                 <>
                   <div className="flex justify-between">
                     <span className="text-slate-400">Move / Brake</span>
-                    <span className="font-mono text-amber-300 font-bold">W / A / S / D</span>
+                    <span className="font-mono text-amber-300 font-bold">
+                      {formatBindingKey(settings.keyBindings.forward)} / {formatBindingKey(settings.keyBindings.left)} / {formatBindingKey(settings.keyBindings.backward)} / {formatBindingKey(settings.keyBindings.right)}
+                    </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-slate-400">Camera Look</span>
-                    <span className="font-mono text-amber-300 font-bold">Mouse (Click to lock) · C recenter</span>
+                    <span className="font-mono text-amber-300 font-bold">
+                      Mouse (Click to lock) · {formatBindingKey(settings.keyBindings.recenter)} recenter
+                    </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-slate-400">Dash Boost</span>
-                    <span className="font-mono text-amber-300 font-bold">Shift / Space</span>
+                    <span className="font-mono text-amber-300 font-bold">
+                      {formatBindingKey(settings.keyBindings.dash)} / Space
+                    </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-slate-400">Restart Race</span>
-                    <span className="font-mono text-amber-300 font-bold">R (anytime)</span>
+                    <span className="font-mono text-amber-300 font-bold">
+                      {formatBindingKey(settings.keyBindings.restart)} (anytime)
+                    </span>
                   </div>
                 </>
               ) : (
                 <>
                   <div className="flex justify-between">
                     <span className="text-slate-400">Thrust & Steer</span>
-                    <span className="font-mono text-amber-300 font-bold">W (thrust) · A / D (steer) · S (brake)</span>
+                    <span className="font-mono text-amber-300 font-bold">
+                      {formatBindingKey(settings.keyBindings.forward)} (thrust) · {formatBindingKey(settings.keyBindings.left)} / {formatBindingKey(settings.keyBindings.right)} (steer) · {formatBindingKey(settings.keyBindings.backward)} (brake)
+                    </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-slate-400">Dash Boost</span>
-                    <span className="font-mono text-amber-300 font-bold">Shift / Space</span>
+                    <span className="font-mono text-amber-300 font-bold">
+                      {formatBindingKey(settings.keyBindings.dash)} / Space
+                    </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-slate-400">Restart Race</span>
-                    <span className="font-mono text-amber-300 font-bold">R (anytime)</span>
+                    <span className="font-mono text-amber-300 font-bold">
+                      {formatBindingKey(settings.keyBindings.restart)} (anytime)
+                    </span>
                   </div>
                 </>
               )}
@@ -708,7 +736,9 @@ export function Hud({ tunables }: HudProps) {
           {settings.controlMode === 'camera-relative' ? (
             <div className="grid grid-cols-2 gap-y-2 text-xs text-slate-200">
               <div className="flex items-center gap-2">
-                <kbd className="px-2 py-1 bg-slate-800 rounded border border-slate-700 font-mono text-amber-300 font-bold">W A S D</kbd>
+                <kbd className="px-2 py-1 bg-slate-800 rounded border border-slate-700 font-mono text-amber-300 font-bold">
+                  {formatBindingKey(settings.keyBindings.forward)} {formatBindingKey(settings.keyBindings.left)} {formatBindingKey(settings.keyBindings.backward)} {formatBindingKey(settings.keyBindings.right)}
+                </kbd>
                 <span>Move & brake</span>
               </div>
               <div className="flex items-center gap-2">
@@ -716,29 +746,41 @@ export function Hud({ tunables }: HudProps) {
                 <span>Look (Click lock)</span>
               </div>
               <div className="flex items-center gap-2">
-                <kbd className="px-2 py-1 bg-slate-800 rounded border border-slate-700 font-mono text-amber-300 font-bold">Shift / Space</kbd>
+                <kbd className="px-2 py-1 bg-slate-800 rounded border border-slate-700 font-mono text-amber-300 font-bold">
+                  {formatBindingKey(settings.keyBindings.dash)} / Space
+                </kbd>
                 <span>Dash impulse</span>
               </div>
               <div className="flex items-center gap-2">
-                <kbd className="px-2 py-1 bg-slate-800 rounded border border-slate-700 font-mono text-amber-300 font-bold">C / MMB</kbd>
+                <kbd className="px-2 py-1 bg-slate-800 rounded border border-slate-700 font-mono text-amber-300 font-bold">
+                  {formatBindingKey(settings.keyBindings.recenter)} / MMB
+                </kbd>
                 <span>Recenter view</span>
               </div>
               {mode === 'hub' ? (
                 <div className="flex items-center gap-2 text-emerald-300">
-                  <kbd className="px-2 py-1 bg-emerald-950/80 rounded border border-emerald-500/50 font-mono text-emerald-300 font-bold">F / E</kbd>
+                  <kbd className="px-2 py-1 bg-emerald-950/80 rounded border border-emerald-500/50 font-mono text-emerald-300 font-bold">
+                    {formatBindingKey(settings.keyBindings.interact)} / E
+                  </kbd>
                   <span>Talk with Elder Moss</span>
                 </div>
               ) : (
                 <div className="flex items-center gap-2 text-slate-400">
-                  <kbd className="px-2 py-1 bg-slate-800 rounded border border-slate-700 font-mono text-slate-300">R</kbd>
+                  <kbd className="px-2 py-1 bg-slate-800 rounded border border-slate-700 font-mono text-slate-300">
+                    {formatBindingKey(settings.keyBindings.restart)}
+                  </kbd>
                   <span>Restart race</span>
                 </div>
               )}
               <div className="flex items-center gap-2 text-sky-300">
-                <kbd className="px-1.5 py-0.5 bg-slate-800 rounded border border-slate-700 font-mono text-xs">Esc</kbd>
+                <kbd className="px-1.5 py-0.5 bg-slate-800 rounded border border-slate-700 font-mono text-xs">
+                  {formatBindingKey(settings.keyBindings.pause)}
+                </kbd>
                 <span>Pause</span>
                 <span className="text-slate-500">·</span>
-                <kbd className="px-1.5 py-0.5 bg-slate-800 rounded border border-slate-700 font-mono text-xs text-amber-300">M</kbd>
+                <kbd className="px-1.5 py-0.5 bg-slate-800 rounded border border-slate-700 font-mono text-xs text-amber-300">
+                  {formatBindingKey(settings.keyBindings.mute)}
+                </kbd>
                 <span>Mute</span>
               </div>
             </div>

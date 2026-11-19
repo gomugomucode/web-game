@@ -69,6 +69,21 @@ export function CameraRig({ inputRef }: CameraRigProps) {
   const isDraggingRef = useRef(false);
   const lastPointerPosRef = useRef({ x: 0, y: 0 });
 
+  // Reactive listener to release pointer lock when any modal/overlay opens
+  const isPaused = useGameStore((s) => s.isPaused);
+  const isDialogueOpen = useGameStore((s) => s.isDialogueOpen);
+  const isTrackSelectOpen = useGameStore((s) => s.isTrackSelectOpen);
+  const isSettingsOpen = useGameStore((s) => s.isSettingsOpen);
+  const phase = useGameStore((s) => s.phase);
+
+  useEffect(() => {
+    const isModalOpen =
+      isPaused || isDialogueOpen || isTrackSelectOpen || isSettingsOpen || phase === 'finished';
+    if (isModalOpen && typeof document !== 'undefined' && document.pointerLockElement) {
+      document.exitPointerLock?.();
+    }
+  }, [isPaused, isDialogueOpen, isTrackSelectOpen, isSettingsOpen, phase]);
+
   useEffect(() => {
     lastMouseMoveTimeRef.current = performance.now();
 
@@ -88,15 +103,14 @@ export function CameraRig({ inputRef }: CameraRigProps) {
       const store = useGameStore.getState();
       store.setPointerLocked(isLocked);
 
-      // Releasing pointer lock (e.g. Esc) opens pause menu if in race and not in a modal
+      // Releasing pointer lock (e.g. Esc) opens pause menu if not in a modal or finished
       if (!isLocked) {
         if (
-          store.mode === 'race' &&
-          (store.phase === 'racing' || store.phase === 'countdown') &&
           !store.isPaused &&
           !store.isDialogueOpen &&
           !store.isTrackSelectOpen &&
-          !store.isSettingsOpen
+          !store.isSettingsOpen &&
+          store.phase !== 'finished'
         ) {
           store.pause();
         }
@@ -167,7 +181,8 @@ export function CameraRig({ inputRef }: CameraRigProps) {
         store.isPaused ||
         store.isDialogueOpen ||
         store.isTrackSelectOpen ||
-        store.isSettingsOpen;
+        store.isSettingsOpen ||
+        store.phase === 'finished';
 
       if (isModalOpen) return;
 
@@ -259,6 +274,7 @@ export function CameraRig({ inputRef }: CameraRigProps) {
       classicDragYawRef.current = 0;
       classicDragPitchRef.current = 0;
       zoomDistRef.current = GAME_CONSTANTS.CAMERA_BEHIND_DISTANCE;
+      lastMouseMoveTimeRef.current = performance.now();
 
       const initX = pos.x - zoomDistRef.current * Math.sin(otterHeading);
       const initZ = pos.z - zoomDistRef.current * Math.cos(otterHeading);

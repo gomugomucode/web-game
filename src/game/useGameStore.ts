@@ -89,6 +89,16 @@ export interface GameStoreState {
 const initialSave = loadSaveData();
 const initialTrackId = 'river-01';
 
+function releasePointerLock() {
+  if (typeof document !== 'undefined' && document.pointerLockElement) {
+    try {
+      document.exitPointerLock?.();
+    } catch {
+      // Ignore if document not active
+    }
+  }
+}
+
 export const useGameStore = create<GameStoreState>((set, get) => ({
   mode: 'hub', // Game starts in 'hub'
   phase: 'idle',
@@ -153,6 +163,7 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
   },
 
   openTrackSelect: () => {
+    releasePointerLock();
     soundManager.playUiClick();
     set({
       isTrackSelectOpen: true,
@@ -226,6 +237,7 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
   },
 
   openDialogue: () => {
+    releasePointerLock();
     soundManager.playDialogueBlip();
     const state = get();
     const wasMet = state.flags.met_mentor;
@@ -274,6 +286,7 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
     const state = get();
     // Cannot pause during dialogue or track select
     if (state.isPaused || state.isDialogueOpen || state.isTrackSelectOpen) return;
+    releasePointerLock();
     soundManager.playUiClick();
     set({
       isPaused: true,
@@ -310,6 +323,7 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
   },
 
   openSettings: () => {
+    releasePointerLock();
     soundManager.playUiClick();
     set({ isSettingsOpen: true });
   },
@@ -367,6 +381,7 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
   },
 
   finish: (time: number, rank = 1) => {
+    releasePointerLock();
     soundManager.playFinishFanfare(rank);
     const state = get();
     const track = getTrack(state.activeTrackId);

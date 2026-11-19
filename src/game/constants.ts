@@ -34,8 +34,13 @@ export const GAME_CONSTANTS = {
   BOUNDARY_SPEED_MULTIPLIER: 0.7, // Section 6.2: Multiply speed by 0.7 on bank contact
   BANK_HEIGHT: 0.85, // Elevation of grassy bank above water level
   BANK_WIDTH: 4.5, // Width of raised bank slope
-  BANK_TOP_COLOR: '#22c55e', // Vibrant anime green grass
-  BANK_SLOPE_COLOR: '#57534e', // Earthen river bank rock/soil
+  BANK_TOP_COLOR: '#348e47', // Fresh anime meadow grass
+  BANK_SLOPE_COLOR: '#544c40', // Moist earthen river bank sediment
+  BANK_WET_EDGE_COLOR: '#3a342c', // Very subtle dark damp edge right at the waterline
+  BANK_DIRT_TRANSITION_COLOR: '#544c40', // Soft moist earth strip just above waterline
+  BANK_GRASS_OLIVE_COLOR: '#4f7d42', // Muted warm olive grass on lower bank slope
+  BANK_GRASS_LUSH_COLOR: '#348e47', // Lush vibrant anime green along bank crests
+  BANK_GRASS_MEADOW_COLOR: '#3ea250', // Soft rolling valley meadow grass on upper plateau
 
   // Race Flow (Milestone 4, Section 6.5 & 6.6)
   COUNTDOWN_STEP_SECONDS: 1.0, // Duration (seconds) for each countdown count (3, 2, 1)
@@ -51,7 +56,7 @@ export const GAME_CONSTANTS = {
   CURRENT_STRIP_HEIGHT: 0.006, // Height above water surface to avoid z-fighting (m)
   CURRENT_STREAK_COUNT: 40, // Number of flow streaks per current
   CURRENT_STREAK_SPEED: 9.0, // Visual flow speed of streak particles (m/s)
-  CURRENT_TINT_COLOR: '#67e8f9', // Light cyan water tint along current polyline
+  CURRENT_TINT_COLOR: '#5eead4', // Vibrant aquamarine / electric teal current stream
   CURRENT_STREAK_COLOR: '#ffffff', // White foam streak particles
   CURRENT_FADE_DISTANCE: 8.0, // Distance (m) over which current force ramps in and out
 
@@ -155,14 +160,22 @@ export const GAME_CONSTANTS = {
   OTTER_LENGTH: 0.9, // Length of capsule cylinder portion (meters)
 
   // World & Aesthetics (Vision document: Genshin-like bright anime nature)
-  WATER_COLOR: '#0891b2', // Deep clear blue-green
-  WATER_SURFACE_COLOR: '#22d3ee', // Highlight water cyan
+  WATER_COLOR: '#0c7a9c', // Deep clear crystal blue-green
+  WATER_SURFACE_COLOR: '#2ed3e8', // Highlight azure-teal water surface
   WATER_SURFACE_Y: 0.0,
-  FOG_COLOR: '#bae6fd',
-  FOG_NEAR: 80,
-  FOG_FAR: 320,
-  SKY_COLOR: '#7dd3fc',
-  GROUND_VALLEY_COLOR: '#16a34a',
+  FOG_COLOR: '#c6d7e8', // Soft atmospheric blue-grey haze (replaces green-tinted cyan)
+  FOG_NEAR: 85,
+  FOG_FAR: 340,
+  SKY_COLOR: '#74b2e8', // Neutral anime sky blue (cooler, less green/cyan)
+  GROUND_VALLEY_COLOR: '#2f7a46', // Muted, natural rolling valley meadow green (replaces flat neon #16a34a)
+  SUN_COLOR: '#fff1d6', // Warm golden sunlight (golden hour warmth + bright Genshin clarity)
+  SUN_INTENSITY: 1.45, // Sunlight radiance
+  SUN_POSITION: [60, 80, -40] as const,
+  HEMI_SKY_COLOR: '#e2edfb', // Soft ambient sky dome
+  HEMI_GROUND_COLOR: '#4a573d', // Muted warm olive ground bounce (replaces neon green bounce)
+  HEMI_INTENSITY: 0.9,
+  PETAL_COLOR: '#fed7aa', // Warm sakura / golden blossom petals drifting on the breeze
+  PETAL_OPACITY: 0.85,
   CANVAS_DPR: [1, 2] as [number, number],
 } as const;
 
