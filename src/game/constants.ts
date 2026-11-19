@@ -34,8 +34,13 @@ export const GAME_CONSTANTS = {
   BOUNDARY_SPEED_MULTIPLIER: 0.7, // Section 6.2: Multiply speed by 0.7 on bank contact
   BANK_HEIGHT: 0.85, // Elevation of grassy bank above water level
   BANK_WIDTH: 4.5, // Width of raised bank slope
-  BANK_TOP_COLOR: '#22c55e', // Vibrant anime green grass
-  BANK_SLOPE_COLOR: '#57534e', // Earthen river bank rock/soil
+  BANK_TOP_COLOR: '#348e47', // Fresh anime meadow grass
+  BANK_SLOPE_COLOR: '#544c40', // Moist earthen river bank sediment
+  BANK_WET_EDGE_COLOR: '#3a342c', // Very subtle dark damp edge right at the waterline
+  BANK_DIRT_TRANSITION_COLOR: '#544c40', // Soft moist earth strip just above waterline
+  BANK_GRASS_OLIVE_COLOR: '#4f7d42', // Muted warm olive grass on lower bank slope
+  BANK_GRASS_LUSH_COLOR: '#348e47', // Lush vibrant anime green along bank crests
+  BANK_GRASS_MEADOW_COLOR: '#3ea250', // Soft rolling valley meadow grass on upper plateau
 
   // Race Flow (Milestone 4, Section 6.5 & 6.6)
   COUNTDOWN_STEP_SECONDS: 1.0, // Duration (seconds) for each countdown count (3, 2, 1)
@@ -51,7 +56,7 @@ export const GAME_CONSTANTS = {
   CURRENT_STRIP_HEIGHT: 0.006, // Height above water surface to avoid z-fighting (m)
   CURRENT_STREAK_COUNT: 40, // Number of flow streaks per current
   CURRENT_STREAK_SPEED: 9.0, // Visual flow speed of streak particles (m/s)
-  CURRENT_TINT_COLOR: '#67e8f9', // Light cyan water tint along current polyline
+  CURRENT_TINT_COLOR: '#5eead4', // Vibrant aquamarine / electric teal current stream
   CURRENT_STREAK_COLOR: '#ffffff', // White foam streak particles
   CURRENT_FADE_DISTANCE: 8.0, // Distance (m) over which current force ramps in and out
 
