@@ -156,8 +156,63 @@ const questMarkerGeo = new THREE.OctahedronGeometry(0.28, 0);
 // Pond Water Geometry (60m across, radius 30m)
 const pondWaterGeo = new THREE.CircleGeometry(GAME_CONSTANTS.HUB_POND_RADIUS, 64);
 
-// Grassy Pond Shore Ring Geometry
-const pondShoreGeo = new THREE.RingGeometry(GAME_CONSTANTS.HUB_POND_RADIUS - 0.5, GAME_CONSTANTS.HUB_POND_RADIUS + 9.0, 64, 2);
+// Grassy Pond Shore Ring Geometry with natural wet edge and grass variation
+const pondShoreGeo = (() => {
+  const innerR = GAME_CONSTANTS.HUB_POND_RADIUS - 0.5;
+  const outerR = GAME_CONSTANTS.HUB_POND_RADIUS + 9.0;
+  const geo = new THREE.RingGeometry(innerR, outerR, 64, 4);
+
+  const posAttr = geo.getAttribute('position');
+  const count = posAttr.count;
+  const colors = new Float32Array(count * 3);
+
+  const wetEdge = new THREE.Color(GAME_CONSTANTS.BANK_WET_EDGE_COLOR);
+  const dirt = new THREE.Color(GAME_CONSTANTS.BANK_DIRT_TRANSITION_COLOR);
+  const oliveGrass = new THREE.Color(GAME_CONSTANTS.BANK_GRASS_OLIVE_COLOR);
+  const lushGrass = new THREE.Color(GAME_CONSTANTS.BANK_GRASS_LUSH_COLOR);
+  const meadowGrass = new THREE.Color(GAME_CONSTANTS.BANK_GRASS_MEADOW_COLOR);
+
+  const tempCol = new THREE.Color();
+
+  for (let i = 0; i < count; i++) {
+    const x = posAttr.getX(i);
+    const y = posAttr.getY(i);
+    const r = Math.sqrt(x * x + y * y);
+    const theta = Math.atan2(y, x);
+
+    // Normalized radial factor (0 = inner waterline, 1 = outer bank)
+    const t = Math.min(1.0, Math.max(0.0, (r - innerR) / (outerR - innerR)));
+
+    // Subtle harmonic variation around pond perimeter
+    const wave = Math.sin(theta * 5.0) * 0.5 + Math.sin(theta * 11.0 + 0.8) * 0.3;
+
+    if (t < 0.12) {
+      // Immediate waterline to wet sediment strip
+      const subT = t / 0.12;
+      tempCol.copy(wetEdge).lerp(dirt, subT);
+    } else if (t < 0.45) {
+      // Moist dirt to warm olive grass on bank slope
+      const subT = (t - 0.12) / (0.45 - 0.12);
+      tempCol.copy(dirt).lerp(oliveGrass, subT);
+    } else if (t < 0.75) {
+      // Olive grass to lush anime meadow green
+      const subT = (t - 0.45) / (0.75 - 0.45);
+      const blendedLush = lushGrass.clone().offsetHSL(0, wave * 0.04, wave * 0.03);
+      tempCol.copy(oliveGrass).lerp(blendedLush, subT);
+    } else {
+      // Upper outer plateau grass
+      const subT = (t - 0.75) / (1.0 - 0.75);
+      tempCol.copy(lushGrass).lerp(meadowGrass, subT);
+    }
+
+    colors[i * 3] = tempCol.r;
+    colors[i * 3 + 1] = tempCol.g;
+    colors[i * 3 + 2] = tempCol.b;
+  }
+
+  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  return geo;
+})();
 
 /**
  * HubScene Component (Milestone 10)
@@ -232,15 +287,15 @@ export function HubScene() {
         renderOrder={1}
       />
 
-      {/* 2. Grassy Pond Shore Perimeter Ring */}
+      {/* 2. Grassy Pond Shore Perimeter Ring (with wet edge and natural grass variation) */}
       <mesh
         geometry={pondShoreGeo}
         rotation={[-Math.PI / 2, 0, 0]}
         position={[0, 0.01, 0]}
       >
         <meshToonMaterial
+          vertexColors
           gradientMap={threeStepGradientMap}
-          color={GAME_CONSTANTS.BANK_TOP_COLOR}
         />
       </mesh>
 
@@ -268,7 +323,7 @@ export function HubScene() {
       <mesh geometry={mergedReedsGeo}>
         <meshToonMaterial
           gradientMap={threeStepGradientMap}
-          color="#65a30d"
+          color="#447738"
         />
       </mesh>
 
