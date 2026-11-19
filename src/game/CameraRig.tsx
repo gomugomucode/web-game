@@ -6,23 +6,34 @@ import * as THREE from 'three';
 import { GAME_CONSTANTS } from './constants';
 import { sharedOtterRefs } from './sharedRefs';
 import { useGameStore } from './useGameStore';
+import { getTrack } from './tracks/registry';
+import { findNearestPointOnPolyline } from './math';
+import { InputState } from './input';
+
+interface CameraRigProps {
+  inputRef?: React.MutableRefObject<InputState>;
+}
 
 /**
- * CameraRig - Enhanced with Mouse Look & Orbit Controls
- * Third-person follow camera:
- * - Follows behind the otter along heading with smooth mouse-look / orbit capability
- * - LookAt target is positioned ahead of the otter along the camera view angle
- * - Drag (left or right click) allows free 360-degree orbit around the otter
- * - Mouse cursor movement (hover) provides subtle responsive side-looking (glance tracking)
- * - Swimming forward (W / Up) smoothly re-aligns camera behind the otter when not dragging
- * - Scroll wheel zooms between 4m and 12m
- * - Double-click snaps camera back to center
- * - Smoothed with exponential interpolation (1 - exp(-rate * dt))
- * - Zero per-frame allocations
- * - Guaranteed to never clip below water surface (y = 0)
+ * CameraRig - Milestone 15: Genshin-style Orbit Camera & Classic Camera Option
+ * - Camera-relative mode:
+ *   - Mouse look with pointer lock (click viewport to lock)
+ *   - Mouse moves orbit camera around the otter (yaw and pitch)
+ *   - Pitch clamped so camera stays above water and under max angle
+ *   - Mouse wheel zooms between 4 m and 12 m
+ *   - Middle click or C key recenters camera behind otter
+ *   - Sensitivity slider and Invert Y from settings
+ *   - Camera assist (races only): after 1.5 s of no mouse input, gently turns toward river direction
+ *   - Arrow keys fallback rotates and tilts camera
+ *   - When cursor is free (pointer lock off or menu open), camera does not move
+ * - Classic mode:
+ *   - Follows behind the otter along heading with smoothing
+ * - Zero per-frame allocations in useFrame
+ * - Dynamic FOV boost (+10 FOV during dash)
+ * - Strict anti-clipping (y >= CAMERA_MIN_Y)
  */
-export function CameraRig() {
-  // Scratch vectors allocated once and reused every frame (no allocations in useFrame)
+export function CameraRig({ inputRef }: CameraRigProps) {
+  // Reusable scratch vectors to guarantee ZERO heap allocations in useFrame
   const currentCamPos = useRef(
     new THREE.Vector3(
       0,
@@ -44,21 +55,23 @@ export function CameraRig() {
   const currentFovRef = useRef<number>(GAME_CONSTANTS.CAMERA_BASE_FOV);
   const isInitializedRef = useRef(false);
 
-  // Mouse look state refs
-  const dragYawRef = useRef(0);
-  const dragPitchRef = useRef(0);
-  const hoverYawRef = useRef(0);
-  const hoverPitchRef = useRef(0);
-  const targetHoverYawRef = useRef(0);
-  const targetHoverPitchRef = useRef(0);
-
+  // Mouse orbit accumulated deltas & orientation refs
+  const mouseDeltaXRef = useRef(0);
+  const mouseDeltaYRef = useRef(0);
+  const lastMouseMoveTimeRef = useRef<number>(0);
+  const camOrbitYawRef = useRef<number>(GAME_CONSTANTS.HUB_SPAWN_HEADING);
+  const camOrbitPitchRef = useRef<number>(0.2);
   const zoomDistRef = useRef<number>(GAME_CONSTANTS.CAMERA_BEHIND_DISTANCE);
+
+  // Classic mode drag look offsets (preserved for Classic mode)
+  const classicDragYawRef = useRef(0);
+  const classicDragPitchRef = useRef(0);
   const isDraggingRef = useRef(false);
-  const didDragRef = useRef(false);
   const lastPointerPosRef = useRef({ x: 0, y: 0 });
 
-  // Event listeners for mouse look & zoom
   useEffect(() => {
+    lastMouseMoveTimeRef.current = performance.now();
+
     function isInteractiveTarget(target: EventTarget | null): boolean {
       if (!target || !(target instanceof HTMLElement)) return false;
       return Boolean(
@@ -68,39 +81,122 @@ export function CameraRig() {
       );
     }
 
-    function handlePointerDown(e: PointerEvent) {
-      if (isInteractiveTarget(e.target)) return;
-      // Allow left click (0), middle click (1), or right click (2)
-      if (e.button === 0 || e.button === 1 || e.button === 2) {
-        isDraggingRef.current = true;
-        didDragRef.current = false;
-        lastPointerPosRef.current.x = e.clientX;
-        lastPointerPosRef.current.y = e.clientY;
+    // 1. Pointer Lock Event Handlers
+    function handlePointerLockChange() {
+      const isLocked = document.pointerLockElement === document.body;
+      sharedOtterRefs.isPointerLocked = isLocked;
+      const store = useGameStore.getState();
+      store.setPointerLocked(isLocked);
+
+      // Releasing pointer lock (e.g. Esc) opens pause menu if in race and not in a modal
+      if (!isLocked) {
+        if (
+          store.mode === 'race' &&
+          (store.phase === 'racing' || store.phase === 'countdown') &&
+          !store.isPaused &&
+          !store.isDialogueOpen &&
+          !store.isTrackSelectOpen &&
+          !store.isSettingsOpen
+        ) {
+          store.pause();
+        }
       }
     }
 
-    function handlePointerMove(e: PointerEvent) {
-      // 1. Update subtle hover gaze tracking from cursor position
-      const normX = (e.clientX / window.innerWidth - 0.5) * 2;
-      const normY = (e.clientY / window.innerHeight - 0.5) * 2;
-      targetHoverYawRef.current = normX * GAME_CONSTANTS.CAMERA_MOUSE_HOVER_YAW_MAX;
-      targetHoverPitchRef.current = -normY * GAME_CONSTANTS.CAMERA_MOUSE_HOVER_PITCH_MAX;
+    function handlePointerLockError() {
+      console.warn('Pointer lock request was refused or unsupported.');
+      const store = useGameStore.getState();
+      store.setPointerLockRefused(true);
+      store.setPointerLocked(false);
+      sharedOtterRefs.isPointerLocked = false;
+    }
 
-      // 2. Handle active mouse drag for orbit
-      if (isDraggingRef.current) {
-        const dx = e.clientX - lastPointerPosRef.current.x;
-        const dy = e.clientY - lastPointerPosRef.current.y;
-        if (Math.abs(dx) > 1 || Math.abs(dy) > 1) {
-          didDragRef.current = true;
+    document.addEventListener('pointerlockchange', handlePointerLockChange);
+    document.addEventListener('pointerlockerror', handlePointerLockError);
+
+    // 2. Click to Request Pointer Lock / Middle Click Recenter
+    function handlePointerDown(e: PointerEvent) {
+      if (isInteractiveTarget(e.target)) return;
+
+      const store = useGameStore.getState();
+      const isModalOpen =
+        store.isPaused ||
+        store.isDialogueOpen ||
+        store.isTrackSelectOpen ||
+        store.isSettingsOpen ||
+        store.phase === 'finished';
+
+      // Middle mouse click (button 1) recenters camera behind otter
+      if (e.button === 1) {
+        e.preventDefault();
+        camOrbitYawRef.current = sharedOtterRefs.heading;
+        camOrbitPitchRef.current = 0.2;
+        classicDragYawRef.current = 0;
+        classicDragPitchRef.current = 0;
+        return;
+      }
+
+      if (store.settings.controlMode === 'camera-relative') {
+        // Request pointer lock on viewport click if no modal is open
+        if (!isModalOpen && document.pointerLockElement !== document.body) {
+          try {
+            const promise = document.body.requestPointerLock() as unknown;
+            if (promise && typeof (promise as Promise<void>).catch === 'function') {
+              (promise as Promise<void>).catch(() => {
+                store.setPointerLockRefused(true);
+              });
+            }
+          } catch {
+            store.setPointerLockRefused(true);
+          }
         }
-        lastPointerPosRef.current.x = e.clientX;
-        lastPointerPosRef.current.y = e.clientY;
+      } else {
+        // Classic mode drag
+        if (e.button === 0 || e.button === 2) {
+          isDraggingRef.current = true;
+          lastPointerPosRef.current.x = e.clientX;
+          lastPointerPosRef.current.y = e.clientY;
+        }
+      }
+    }
 
-        dragYawRef.current -= dx * GAME_CONSTANTS.CAMERA_DRAG_SENSITIVITY_X;
-        dragPitchRef.current = Math.max(
-          -0.4,
-          Math.min(0.7, dragPitchRef.current - dy * GAME_CONSTANTS.CAMERA_DRAG_SENSITIVITY_Y)
-        );
+    // 3. Mouse Movement (Accumulate deltas outside useFrame loop)
+    function handleMouseMove(e: MouseEvent) {
+      const store = useGameStore.getState();
+      const isModalOpen =
+        store.isPaused ||
+        store.isDialogueOpen ||
+        store.isTrackSelectOpen ||
+        store.isSettingsOpen;
+
+      if (isModalOpen) return;
+
+      if (store.settings.controlMode === 'camera-relative') {
+        // Camera-relative: only move camera when pointer is locked!
+        if (document.pointerLockElement === document.body) {
+          const sensitivity =
+            GAME_CONSTANTS.CAMERA_POINTER_SENSITIVITY *
+            (store.settings.mouseSensitivity || 1.0);
+          const invertFactor = store.settings.invertY ? -1 : 1;
+
+          mouseDeltaXRef.current += e.movementX * sensitivity;
+          mouseDeltaYRef.current += e.movementY * sensitivity * invertFactor;
+          lastMouseMoveTimeRef.current = performance.now();
+        }
+      } else {
+        // Classic mode drag orbit
+        if (isDraggingRef.current) {
+          const dx = e.clientX - lastPointerPosRef.current.x;
+          const dy = e.clientY - lastPointerPosRef.current.y;
+          lastPointerPosRef.current.x = e.clientX;
+          lastPointerPosRef.current.y = e.clientY;
+
+          classicDragYawRef.current -= dx * GAME_CONSTANTS.CAMERA_DRAG_SENSITIVITY_X;
+          classicDragPitchRef.current = Math.max(
+            -0.4,
+            Math.min(0.7, classicDragPitchRef.current - dy * GAME_CONSTANTS.CAMERA_DRAG_SENSITIVITY_Y)
+          );
+        }
       }
     }
 
@@ -108,30 +204,7 @@ export function CameraRig() {
       isDraggingRef.current = false;
     }
 
-    function handlePointerCancel() {
-      isDraggingRef.current = false;
-    }
-
-    function handleMouseLeave() {
-      targetHoverYawRef.current = 0;
-      targetHoverPitchRef.current = 0;
-      isDraggingRef.current = false;
-    }
-
-    function handleDblClick(e: MouseEvent) {
-      if (isInteractiveTarget(e.target)) return;
-      // Double click resets mouse view to neutral behind otter
-      dragYawRef.current = 0;
-      dragPitchRef.current = 0;
-    }
-
-    function handleContextMenu(e: MouseEvent) {
-      // Suppress context menu if dragged or clicking in 3D area
-      if (didDragRef.current || !isInteractiveTarget(e.target)) {
-        e.preventDefault();
-      }
-    }
-
+    // 4. Mouse Wheel Zoom (4m to 12m)
     function handleWheel(e: WheelEvent) {
       if (isInteractiveTarget(e.target)) return;
       zoomDistRef.current = Math.max(
@@ -143,24 +216,26 @@ export function CameraRig() {
       );
     }
 
+    function handleContextMenu(e: MouseEvent) {
+      if (!isInteractiveTarget(e.target)) {
+        e.preventDefault();
+      }
+    }
+
     window.addEventListener('pointerdown', handlePointerDown);
-    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('mousemove', handleMouseMove);
     window.addEventListener('pointerup', handlePointerUp);
-    window.addEventListener('pointercancel', handlePointerCancel);
-    window.addEventListener('mouseleave', handleMouseLeave);
-    window.addEventListener('dblclick', handleDblClick);
-    window.addEventListener('contextmenu', handleContextMenu);
     window.addEventListener('wheel', handleWheel, { passive: true });
+    window.addEventListener('contextmenu', handleContextMenu);
 
     return () => {
+      document.removeEventListener('pointerlockchange', handlePointerLockChange);
+      document.removeEventListener('pointerlockerror', handlePointerLockError);
       window.removeEventListener('pointerdown', handlePointerDown);
-      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('pointerup', handlePointerUp);
-      window.removeEventListener('pointercancel', handlePointerCancel);
-      window.removeEventListener('mouseleave', handleMouseLeave);
-      window.removeEventListener('dblclick', handleDblClick);
-      window.removeEventListener('contextmenu', handleContextMenu);
       window.removeEventListener('wheel', handleWheel);
+      window.removeEventListener('contextmenu', handleContextMenu);
     };
   }, []);
 
@@ -169,84 +244,151 @@ export function CameraRig() {
     const dt = Math.min(delta, GAME_CONSTANTS.MAX_DELTA_TIME);
     if (dt <= 0) return;
 
-    if (useGameStore.getState().isPaused) return;
+    const store = useGameStore.getState();
+    if (store.isPaused) return;
 
-    // 2. Read live otter position, heading, and dash state from shared refs
+    const isCameraRelative = store.settings.controlMode === 'camera-relative';
     const pos = sharedOtterRefs.position;
-    const h = sharedOtterRefs.heading;
+    const otterHeading = sharedOtterRefs.heading;
     const isDashing = sharedOtterRefs.isDashing;
 
-    // 3. Smooth hover angles towards targets
-    const hoverBlend = 1 - Math.exp(-8.0 * dt);
-    hoverYawRef.current += (targetHoverYawRef.current - hoverYawRef.current) * hoverBlend;
-    hoverPitchRef.current += (targetHoverPitchRef.current - hoverPitchRef.current) * hoverBlend;
-
-    // 4. Auto-recenter drag offset when swimming forward without dragging
-    if (!isDraggingRef.current && sharedOtterRefs.isMovingForward) {
-      const recenterDecay = Math.exp(-GAME_CONSTANTS.CAMERA_RECENTER_RATE * dt);
-      dragYawRef.current *= recenterDecay;
-      dragPitchRef.current *= recenterDecay;
-    }
-
-    // 5. Compute combined camera view yaw and pitch angles
-    const totalCamYaw = h + dragYawRef.current + hoverYawRef.current;
-    const totalPitch = dragPitchRef.current + hoverPitchRef.current;
-
-    const sinCam = Math.sin(totalCamYaw);
-    const cosCam = Math.cos(totalCamYaw);
-    const dist = zoomDistRef.current;
-
-    // 6. Compute desired camera position: placed behind along totalCamYaw, elevated above water
-    const behindX = pos.x - dist * sinCam;
-    const behindZ = pos.z - dist * cosCam;
-    const desiredY = Math.max(
-      GAME_CONSTANTS.CAMERA_MIN_Y,
-      pos.y + GAME_CONSTANTS.CAMERA_HEIGHT + totalPitch * 3.0
-    );
-    tempDesiredCamPos.current.set(behindX, desiredY, behindZ);
-
-    // 7. Compute look-at point: centered on otter with slight look-ahead along view direction
-    const lookX = pos.x + GAME_CONSTANTS.CAMERA_LOOK_AHEAD_DISTANCE * sinCam;
-    const lookY = Math.max(0.1, pos.y + GAME_CONSTANTS.CAMERA_LOOK_AHEAD_Y + totalPitch * 0.8);
-    const lookZ = pos.z + GAME_CONSTANTS.CAMERA_LOOK_AHEAD_DISTANCE * cosCam;
-    tempDesiredLookAt.current.set(lookX, lookY, lookZ);
-
-    // 8. Handle initial mount or position reset (<kbd>R</kbd>) to prevent lag flying
+    // Handle initial mount or position reset (<kbd>R</kbd>)
     if (!isInitializedRef.current || sharedOtterRefs.hasReset) {
-      dragYawRef.current = 0;
-      dragPitchRef.current = 0;
-      hoverYawRef.current = 0;
-      hoverPitchRef.current = 0;
-      targetHoverYawRef.current = 0;
-      targetHoverPitchRef.current = 0;
+      camOrbitYawRef.current = otterHeading;
+      camOrbitPitchRef.current = 0.2;
+      classicDragYawRef.current = 0;
+      classicDragPitchRef.current = 0;
       zoomDistRef.current = GAME_CONSTANTS.CAMERA_BEHIND_DISTANCE;
 
-      currentCamPos.current.copy(tempDesiredCamPos.current);
-      currentLookAt.current.copy(tempDesiredLookAt.current);
+      const initX = pos.x - zoomDistRef.current * Math.sin(otterHeading);
+      const initZ = pos.z - zoomDistRef.current * Math.cos(otterHeading);
+      currentCamPos.current.set(initX, pos.y + GAME_CONSTANTS.CAMERA_HEIGHT, initZ);
+      currentLookAt.current.set(
+        pos.x + GAME_CONSTANTS.CAMERA_LOOK_AHEAD_DISTANCE * Math.sin(otterHeading),
+        pos.y + GAME_CONSTANTS.CAMERA_LOOK_AHEAD_Y,
+        pos.z + GAME_CONSTANTS.CAMERA_LOOK_AHEAD_DISTANCE * Math.cos(otterHeading)
+      );
       currentFovRef.current = GAME_CONSTANTS.CAMERA_BASE_FOV;
       isInitializedRef.current = true;
       sharedOtterRefs.hasReset = false;
-    } else {
-      // 9. Smooth exponential interpolation: 1 - exp(-6 * dt)
-      const blend = 1 - Math.exp(-GAME_CONSTANTS.CAMERA_SMOOTH_RATE * dt);
-      currentCamPos.current.lerp(tempDesiredCamPos.current, blend);
-      currentLookAt.current.lerp(tempDesiredLookAt.current, blend);
     }
 
-    // 10. Strict anti-clipping: camera must never go below water surface (y = 0)
+    // 2. Process Input (Mouse deltas, C recenter, and Arrow keys)
+    const inp = inputRef?.current;
+
+    // Recenter (C key)
+    if (inp?.recenter) {
+      camOrbitYawRef.current = otterHeading;
+      camOrbitPitchRef.current = 0.2;
+      classicDragYawRef.current = 0;
+      classicDragPitchRef.current = 0;
+    }
+
+    let finalCamYaw = otterHeading;
+    let finalPitch = 0.2;
+
+    if (isCameraRelative) {
+      // Consume accumulated mouse deltas
+      camOrbitYawRef.current -= mouseDeltaXRef.current;
+      camOrbitPitchRef.current = Math.max(
+        GAME_CONSTANTS.CAMERA_PITCH_MIN,
+        Math.min(GAME_CONSTANTS.CAMERA_PITCH_MAX, camOrbitPitchRef.current + mouseDeltaYRef.current)
+      );
+      mouseDeltaXRef.current = 0;
+      mouseDeltaYRef.current = 0;
+
+      // Fallback Arrow Keys for Camera Orbit
+      if (inp?.camLeft) camOrbitYawRef.current += GAME_CONSTANTS.CAMERA_ARROW_KEY_SPEED_YAW * dt;
+      if (inp?.camRight) camOrbitYawRef.current -= GAME_CONSTANTS.CAMERA_ARROW_KEY_SPEED_YAW * dt;
+      if (inp?.camUp) {
+        camOrbitPitchRef.current = Math.max(
+          GAME_CONSTANTS.CAMERA_PITCH_MIN,
+          camOrbitPitchRef.current - GAME_CONSTANTS.CAMERA_ARROW_KEY_SPEED_PITCH * dt
+        );
+      }
+      if (inp?.camDown) {
+        camOrbitPitchRef.current = Math.min(
+          GAME_CONSTANTS.CAMERA_PITCH_MAX,
+          camOrbitPitchRef.current + GAME_CONSTANTS.CAMERA_ARROW_KEY_SPEED_PITCH * dt
+        );
+      }
+
+      // 3. Camera Assist (Requirement 3: on in race mode, after 1.5s idle)
+      const now = performance.now();
+      const isIdle = now - lastMouseMoveTimeRef.current > GAME_CONSTANTS.CAMERA_ASSIST_IDLE_DELAY * 1000;
+      if (
+        store.mode === 'race' &&
+        store.settings.cameraAssist &&
+        isIdle &&
+        !inp?.camLeft &&
+        !inp?.camRight
+      ) {
+        const track = getTrack(store.activeTrackId);
+        const pts = track.smoothedCenterline ?? track.centerline;
+        const curRes = findNearestPointOnPolyline(pos.x, pos.z, pts);
+        const targetRiverYaw = Math.atan2(curRes.tangentX, curRes.tangentZ);
+
+        // Shortest angular difference
+        let diff = targetRiverYaw - camOrbitYawRef.current;
+        while (diff > Math.PI) diff -= Math.PI * 2;
+        while (diff < -Math.PI) diff += Math.PI * 2;
+
+        const assistBlend = 1 - Math.exp(-GAME_CONSTANTS.CAMERA_ASSIST_STRENGTH * dt);
+        camOrbitYawRef.current += diff * assistBlend;
+      }
+
+      // Write cameraYaw to shared refs for Otter steering
+      sharedOtterRefs.cameraYaw = camOrbitYawRef.current;
+      finalCamYaw = camOrbitYawRef.current;
+      finalPitch = camOrbitPitchRef.current;
+    } else {
+      // Classic mode: camera aligns behind otter heading with drag offset
+      if (!isDraggingRef.current && sharedOtterRefs.isMovingForward) {
+        const decay = Math.exp(-GAME_CONSTANTS.CAMERA_RECENTER_RATE * dt);
+        classicDragYawRef.current *= decay;
+        classicDragPitchRef.current *= decay;
+      }
+      finalCamYaw = otterHeading + classicDragYawRef.current;
+      finalPitch = classicDragPitchRef.current;
+      sharedOtterRefs.cameraYaw = otterHeading;
+    }
+
+    // 4. Compute Camera Placement & LookAt
+    const sinCam = Math.sin(finalCamYaw);
+    const cosCam = Math.cos(finalCamYaw);
+    const dist = zoomDistRef.current;
+
+    const behindX = pos.x - dist * Math.cos(finalPitch) * sinCam;
+    const behindZ = pos.z - dist * Math.cos(finalPitch) * cosCam;
+    const desiredY = Math.max(
+      GAME_CONSTANTS.CAMERA_MIN_Y,
+      pos.y + GAME_CONSTANTS.CAMERA_HEIGHT + dist * Math.sin(finalPitch)
+    );
+    tempDesiredCamPos.current.set(behindX, desiredY, behindZ);
+
+    const lookX = pos.x + (isCameraRelative ? 0 : GAME_CONSTANTS.CAMERA_LOOK_AHEAD_DISTANCE * sinCam);
+    const lookY = Math.max(0.1, pos.y + GAME_CONSTANTS.CAMERA_LOOK_AHEAD_Y);
+    const lookZ = pos.z + (isCameraRelative ? 0 : GAME_CONSTANTS.CAMERA_LOOK_AHEAD_DISTANCE * cosCam);
+    tempDesiredLookAt.current.set(lookX, lookY, lookZ);
+
+    // 5. Exponential Smoothing (1 - exp(-6 * dt))
+    const blend = 1 - Math.exp(-GAME_CONSTANTS.CAMERA_SMOOTH_RATE * dt);
+    currentCamPos.current.lerp(tempDesiredCamPos.current, blend);
+    currentLookAt.current.lerp(tempDesiredLookAt.current, blend);
+
+    // 6. Strict Anti-clipping: camera must never clip below water surface
     if (currentCamPos.current.y < GAME_CONSTANTS.CAMERA_MIN_Y) {
       currentCamPos.current.y = GAME_CONSTANTS.CAMERA_MIN_Y;
     }
 
-    // 11. Apply position and lookAt to camera
+    // 7. Apply to Three.js camera
     state.camera.position.copy(currentCamPos.current);
     state.camera.lookAt(currentLookAt.current);
 
-    // 12. Dynamic Field of View: 60 at rest, rising up to +10 during dash, easing back
+    // 8. Dynamic FOV (+10 FOV during dash)
     const targetFov = isDashing
       ? GAME_CONSTANTS.CAMERA_BASE_FOV + GAME_CONSTANTS.CAMERA_DASH_FOV_BOOST
       : GAME_CONSTANTS.CAMERA_BASE_FOV;
-
     const fovBlend = 1 - Math.exp(-GAME_CONSTANTS.CAMERA_FOV_SMOOTH_RATE * dt);
     currentFovRef.current += (targetFov - currentFovRef.current) * fovBlend;
 

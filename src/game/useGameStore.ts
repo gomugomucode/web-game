@@ -51,6 +51,10 @@ export interface GameStoreState {
   winningRivalId: string | null;
   unlockBanner: string | null;
 
+  // Pointer Lock & Camera State (Milestone 15)
+  isPointerLocked: boolean;
+  pointerLockRefused: boolean;
+
   // Actions
   setMode: (mode: GameMode) => void;
   selectTrack: (trackId: string) => void;
@@ -64,6 +68,8 @@ export interface GameStoreState {
   selectChoice: (index: number) => void;
   closeDialogue: () => void;
   setIsNearNpc: (near: boolean) => void;
+  setPointerLocked: (locked: boolean) => void;
+  setPointerLockRefused: (refused: boolean) => void;
 
   pause: () => void;
   resume: () => void;
@@ -119,6 +125,11 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
   secondPlaceRivalId: null,
   winningRivalId: null,
   unlockBanner: null,
+  isPointerLocked: false,
+  pointerLockRefused: false,
+
+  setPointerLocked: (locked: boolean) => set({ isPointerLocked: locked }),
+  setPointerLockRefused: (refused: boolean) => set({ pointerLockRefused: refused }),
 
   setMode: (mode: GameMode) => set({ mode }),
 

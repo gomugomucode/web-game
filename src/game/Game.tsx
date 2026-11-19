@@ -200,7 +200,7 @@ export function Game() {
         <DevPerformanceMonitor />
 
         {/* Follow Camera with 1 - exp(-6 * dt) smoothing and dash FOV effect */}
-        <CameraRig />
+        <CameraRig inputRef={inputRef} />
       </Canvas>
     </div>
   );

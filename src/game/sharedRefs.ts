@@ -12,6 +12,8 @@ export interface OtterSharedRefs {
   isDashing: boolean;
   hasReset: boolean;
   isMovingForward: boolean;
+  cameraYaw: number; // Camera horizontal view angle in radians, 0 = looking towards +Z
+  isPointerLocked: boolean;
 }
 
 export const sharedOtterRefs: OtterSharedRefs = {
@@ -24,5 +26,7 @@ export const sharedOtterRefs: OtterSharedRefs = {
   isDashing: false,
   hasReset: false,
   isMovingForward: false,
+  cameraYaw: GAME_CONSTANTS.HUB_SPAWN_HEADING,
+  isPointerLocked: false,
 };
 

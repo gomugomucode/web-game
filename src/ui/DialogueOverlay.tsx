@@ -53,9 +53,16 @@ export function DialogueOverlay() {
     if (mode !== 'hub' && !isDialogueOpen) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      // 1. Open dialogue when near NPC and pressing E (hub only)
+      // 1. Open dialogue when near NPC and pressing F or E (hub only)
       if (!isDialogueOpen) {
-        if (mode === 'hub' && isNearNpc && (e.code === 'KeyE' || e.key.toLowerCase() === 'e')) {
+        if (
+          mode === 'hub' &&
+          isNearNpc &&
+          (e.code === 'KeyF' ||
+            e.key.toLowerCase() === 'f' ||
+            e.code === 'KeyE' ||
+            e.key.toLowerCase() === 'e')
+        ) {
           e.preventDefault();
           openDialogue();
         }
@@ -78,14 +85,23 @@ export function DialogueOverlay() {
         } else if (e.code === 'ArrowDown' || e.code === 'ArrowRight') {
           e.preventDefault();
           selectChoice(1);
-        } else if (e.code === 'Enter' || e.code === 'Space' || e.code === 'KeyE' || e.key.toLowerCase() === 'e') {
+        } else if (
+          e.code === 'Enter' ||
+          e.code === 'Space' ||
+          e.code === 'KeyF' ||
+          e.key.toLowerCase() === 'f' ||
+          e.code === 'KeyE' ||
+          e.key.toLowerCase() === 'e'
+        ) {
           e.preventDefault();
           const chosen = currentLine.choices[selectedChoiceIndex] || currentLine.choices[0];
           handleChoiceSelect(chosen.action);
         }
       } else {
-        // Advance to next line with E, Enter or Space
+        // Advance to next line with F, E, Enter or Space
         if (
+          e.code === 'KeyF' ||
+          e.key.toLowerCase() === 'f' ||
           e.code === 'KeyE' ||
           e.key.toLowerCase() === 'e' ||
           e.code === 'Enter' ||

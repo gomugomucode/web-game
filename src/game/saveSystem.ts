@@ -11,16 +11,49 @@ export interface SaveFlags {
   story_complete: boolean;
 }
 
+export type ControlMode = 'camera-relative' | 'classic';
+
+export interface KeyBindings {
+  forward: string;   // default 'KeyW'
+  backward: string;  // default 'KeyS'
+  left: string;      // default 'KeyA'
+  right: string;     // default 'KeyD'
+  dash: string;      // default 'ShiftLeft'
+  interact: string;  // default 'KeyF'
+  pause: string;     // default 'Escape'
+  restart: string;   // default 'KeyR'
+  mute: string;      // default 'KeyM'
+  recenter: string;  // default 'KeyC'
+}
+
+export const DEFAULT_KEY_BINDINGS: Readonly<KeyBindings> = {
+  forward: 'KeyW',
+  backward: 'KeyS',
+  left: 'KeyA',
+  right: 'KeyD',
+  dash: 'ShiftLeft',
+  interact: 'KeyF',
+  pause: 'Escape',
+  restart: 'KeyR',
+  mute: 'KeyM',
+  recenter: 'KeyC',
+};
+
 export interface GameSettings {
   masterVolume: number; // 0.0 to 1.0
   musicVolume: number;  // 0.0 to 1.0
   sfxVolume: number;    // 0.0 to 1.0
   muted: boolean;
   graphicsQuality: 'high' | 'low';
+  controlMode: ControlMode;
+  mouseSensitivity: number; // 0.2 to 3.0, default 1.0
+  invertY: boolean;         // default false
+  cameraAssist: boolean;    // default true (on in race, off in hub)
+  keyBindings: KeyBindings;
 }
 
 export interface SaveData {
-  version: 2;
+  version: 3;
   unlockedTracks: string[];
   bestTimes: Record<string, number>;
   flags: SaveFlags;
@@ -33,10 +66,15 @@ export const DEFAULT_SETTINGS: Readonly<GameSettings> = {
   sfxVolume: 0.9,
   muted: false,
   graphicsQuality: 'high',
+  controlMode: 'camera-relative',
+  mouseSensitivity: 1.0,
+  invertY: false,
+  cameraAssist: true,
+  keyBindings: { ...DEFAULT_KEY_BINDINGS },
 };
 
 export const DEFAULT_SAVE_DATA: Readonly<SaveData> = {
-  version: 2,
+  version: 3,
   unlockedTracks: ['river-01'],
   bestTimes: {},
   flags: {
@@ -92,7 +130,14 @@ export function loadSaveData(): SaveData {
           unlocked.push('river-03');
         }
 
-        // Migrate settings from version 1 or validate version 2 settings
+        // Migrate settings from version 1/2 or validate version 3 settings
+        const loadedKeyBindings: KeyBindings = {
+          ...DEFAULT_KEY_BINDINGS,
+          ...(parsed.settings?.keyBindings && typeof parsed.settings.keyBindings === 'object'
+            ? parsed.settings.keyBindings
+            : {}),
+        };
+
         const loadedSettings: GameSettings = {
           masterVolume: typeof parsed.settings?.masterVolume === 'number'
             ? Math.max(0, Math.min(1, parsed.settings.masterVolume))
@@ -105,18 +150,25 @@ export function loadSaveData(): SaveData {
             : DEFAULT_SETTINGS.sfxVolume,
           muted: Boolean(parsed.settings?.muted ?? DEFAULT_SETTINGS.muted),
           graphicsQuality: parsed.settings?.graphicsQuality === 'low' ? 'low' : 'high',
+          controlMode: parsed.settings?.controlMode === 'classic' ? 'classic' : 'camera-relative',
+          mouseSensitivity: typeof parsed.settings?.mouseSensitivity === 'number'
+            ? Math.max(0.2, Math.min(3.0, parsed.settings.mouseSensitivity))
+            : DEFAULT_SETTINGS.mouseSensitivity,
+          invertY: Boolean(parsed.settings?.invertY ?? DEFAULT_SETTINGS.invertY),
+          cameraAssist: Boolean(parsed.settings?.cameraAssist ?? DEFAULT_SETTINGS.cameraAssist),
+          keyBindings: loadedKeyBindings,
         };
 
         const migratedSave: SaveData = {
-          version: 2,
+          version: 3,
           unlockedTracks: unlocked,
           bestTimes,
           flags,
           settings: loadedSettings,
         };
 
-        // If migrating from v1 (or if json wasn't already version 2), save v2 back
-        if (parsed.version !== 2) {
+        // If migrating from v1/v2 (or if json wasn't already version 3), save v3 back
+        if (parsed.version !== 3) {
           try {
             localStorage.setItem(SAVE_STORAGE_KEY, JSON.stringify(migratedSave));
           } catch {
@@ -139,7 +191,7 @@ export function loadSaveData(): SaveData {
     }
 
     const initialSave: SaveData = {
-      version: 2,
+      version: 3,
       unlockedTracks: ['river-01'],
       bestTimes: initialBestTimes,
       flags: {
