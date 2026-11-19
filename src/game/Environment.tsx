@@ -65,16 +65,16 @@ export function Environment({ mode = 'race' }: EnvironmentProps) {
       {/* 2. Soft Sky Color */}
       <color attach="background" args={[GAME_CONSTANTS.SKY_COLOR]} />
 
-      {/* 3. Genshin-Style Warm Lighting */}
+      {/* 3. Genshin-Style Warm Lighting (golden hour sunlight & soft atmospheric dome) */}
       <hemisphereLight
-        color="#e0f2fe"
-        groundColor="#15803d"
-        intensity={0.95}
+        color={GAME_CONSTANTS.HEMI_SKY_COLOR}
+        groundColor={GAME_CONSTANTS.HEMI_GROUND_COLOR}
+        intensity={GAME_CONSTANTS.HEMI_INTENSITY}
       />
       <directionalLight
-        position={[60, 80, -40]}
-        intensity={1.35}
-        color="#fffbeb"
+        position={GAME_CONSTANTS.SUN_POSITION}
+        intensity={GAME_CONSTANTS.SUN_INTENSITY}
+        color={GAME_CONSTANTS.SUN_COLOR}
       />
 
       {/* 4. Surrounding Valley Ground Plane (lowered below water surface and riverbed to prevent z-fighting/occlusion) */}
@@ -182,7 +182,11 @@ function FloatingPetals() {
   return (
     <instancedMesh ref={meshRef} args={[undefined, undefined, PARTICLE_COUNT]}>
       <boxGeometry args={[1, 1, 1]} />
-      <meshBasicMaterial color="#86efac" transparent opacity={0.8} />
+      <meshBasicMaterial
+        color={GAME_CONSTANTS.PETAL_COLOR}
+        transparent
+        opacity={GAME_CONSTANTS.PETAL_OPACITY}
+      />
     </instancedMesh>
   );
 }

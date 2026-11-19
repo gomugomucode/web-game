@@ -33,15 +33,28 @@ export function River({ track }: RiverProps) {
     const waterUvs: number[] = [];
     const waterIndices: number[] = [];
 
-    // 2. Left Bank Geometry (slope + grassy top)
+    // 2. Left Bank Geometry (wet edge -> moist dirt -> crest -> outer meadow)
     const leftPositions: number[] = [];
     const leftUvs: number[] = [];
+    const leftColors: number[] = [];
     const leftIndices: number[] = [];
 
-    // 3. Right Bank Geometry (slope + grassy top)
+    // 3. Right Bank Geometry (wet edge -> moist dirt -> crest -> outer meadow)
     const rightPositions: number[] = [];
     const rightUvs: number[] = [];
+    const rightColors: number[] = [];
     const rightIndices: number[] = [];
+
+    // Color palette objects for bank variation
+    const wetEdgeColor = new THREE.Color(GAME_CONSTANTS.BANK_WET_EDGE_COLOR);
+    const dirtColor = new THREE.Color(GAME_CONSTANTS.BANK_DIRT_TRANSITION_COLOR);
+    const oliveGrassColor = new THREE.Color(GAME_CONSTANTS.BANK_GRASS_OLIVE_COLOR);
+    const lushGrassColor = new THREE.Color(GAME_CONSTANTS.BANK_GRASS_LUSH_COLOR);
+    const meadowGrassColor = new THREE.Color(GAME_CONSTANTS.BANK_GRASS_MEADOW_COLOR);
+
+    const tempDirtColor = new THREE.Color();
+    const tempCrestColor = new THREE.Color();
+    const tempOuterColor = new THREE.Color();
 
     let cumDist = 0;
     for (let i = 0; i < count; i++) {
@@ -81,29 +94,60 @@ export function River({ track }: RiverProps) {
       waterPositions.push(rightEdgeX, GAME_CONSTANTS.WATER_SURFACE_Y, rightEdgeZ);
       waterUvs.push(0, vCoord, 1, vCoord);
 
-      // --- Left Bank (Waterline -> Crest -> Outer Top) ---
+      // --- Subtle harmonic color variation along river length ---
+      const wave1 = Math.sin(cumDist * 0.05);
+      const wave2 = Math.sin(cumDist * 0.018 + 1.2);
+      const waveComb = (wave1 * 0.6 + wave2 * 0.4) * 0.5 + 0.5; // 0.0 to 1.0
+
+      tempDirtColor.copy(dirtColor);
+      tempDirtColor.r += wave1 * 0.02;
+      tempDirtColor.g += wave2 * 0.015;
+
+      // Crest blends between warm olive and lush anime green
+      tempCrestColor.copy(oliveGrassColor).lerp(lushGrassColor, 0.45 + waveComb * 0.45);
+
+      // Outer plateau blends between lush green and soft meadow green
+      tempOuterColor.copy(lushGrassColor).lerp(meadowGrassColor, 0.35 + (1.0 - waveComb) * 0.55);
+
+      // --- Left Bank (Waterline -> Wet Edge/Dirt -> Crest -> Outer Top) ---
+      const leftDirtX = curr[0] + nx * (halfWidth + 0.35);
+      const leftDirtZ = curr[1] + nz * (halfWidth + 0.35);
       const leftCrestX = curr[0] + nx * (halfWidth + 1.2);
       const leftCrestZ = curr[1] + nz * (halfWidth + 1.2);
       const leftOuterX = curr[0] + nx * (halfWidth + bankWidth);
       const leftOuterZ = curr[1] + nz * (halfWidth + bankWidth);
 
       leftPositions.push(leftEdgeX, GAME_CONSTANTS.WATER_SURFACE_Y, leftEdgeZ);
+      leftPositions.push(leftDirtX, bankHeight * 0.2, leftDirtZ);
       leftPositions.push(leftCrestX, bankHeight, leftCrestZ);
       leftPositions.push(leftOuterX, bankHeight * 0.95, leftOuterZ);
 
-      leftUvs.push(0, vCoord, 0.5, vCoord, 1, vCoord);
+      leftUvs.push(0, vCoord, 0.15, vCoord, 0.5, vCoord, 1, vCoord);
 
-      // --- Right Bank (Waterline -> Crest -> Outer Top) ---
+      leftColors.push(wetEdgeColor.r, wetEdgeColor.g, wetEdgeColor.b);
+      leftColors.push(tempDirtColor.r, tempDirtColor.g, tempDirtColor.b);
+      leftColors.push(tempCrestColor.r, tempCrestColor.g, tempCrestColor.b);
+      leftColors.push(tempOuterColor.r, tempOuterColor.g, tempOuterColor.b);
+
+      // --- Right Bank (Waterline -> Wet Edge/Dirt -> Crest -> Outer Top) ---
+      const rightDirtX = curr[0] - nx * (halfWidth + 0.35);
+      const rightDirtZ = curr[1] - nz * (halfWidth + 0.35);
       const rightCrestX = curr[0] - nx * (halfWidth + 1.2);
       const rightCrestZ = curr[1] - nz * (halfWidth + 1.2);
       const rightOuterX = curr[0] - nx * (halfWidth + bankWidth);
       const rightOuterZ = curr[1] - nz * (halfWidth + bankWidth);
 
       rightPositions.push(rightEdgeX, GAME_CONSTANTS.WATER_SURFACE_Y, rightEdgeZ);
+      rightPositions.push(rightDirtX, bankHeight * 0.2, rightDirtZ);
       rightPositions.push(rightCrestX, bankHeight, rightCrestZ);
       rightPositions.push(rightOuterX, bankHeight * 0.95, rightOuterZ);
 
-      rightUvs.push(0, vCoord, 0.5, vCoord, 1, vCoord);
+      rightUvs.push(0, vCoord, 0.15, vCoord, 0.5, vCoord, 1, vCoord);
+
+      rightColors.push(wetEdgeColor.r, wetEdgeColor.g, wetEdgeColor.b);
+      rightColors.push(tempDirtColor.r, tempDirtColor.g, tempDirtColor.b);
+      rightColors.push(tempCrestColor.r, tempCrestColor.g, tempCrestColor.b);
+      rightColors.push(tempOuterColor.r, tempOuterColor.g, tempOuterColor.b);
     }
 
     // Build quad indices for water ribbon
@@ -113,19 +157,29 @@ export function River({ track }: RiverProps) {
       waterIndices.push(row + 1, row + 3, row + 2);
     }
 
-    // Build indices for banks (2 quads = 4 triangles per slice)
+    // Build indices for banks (3 quads = 6 triangles per slice across 4 vertices)
     for (let i = 0; i < count - 1; i++) {
-      const rowL = i * 3;
-      leftIndices.push(rowL, rowL + 1, rowL + 3);
-      leftIndices.push(rowL + 1, rowL + 4, rowL + 3);
-      leftIndices.push(rowL + 1, rowL + 2, rowL + 4);
-      leftIndices.push(rowL + 2, rowL + 5, rowL + 4);
+      const rowL = i * 4;
+      // Strip 1: Waterline -> Dirt Transition
+      leftIndices.push(rowL, rowL + 1, rowL + 4);
+      leftIndices.push(rowL + 1, rowL + 5, rowL + 4);
+      // Strip 2: Dirt -> Crest
+      leftIndices.push(rowL + 1, rowL + 2, rowL + 5);
+      leftIndices.push(rowL + 2, rowL + 6, rowL + 5);
+      // Strip 3: Crest -> Outer Top
+      leftIndices.push(rowL + 2, rowL + 3, rowL + 6);
+      leftIndices.push(rowL + 3, rowL + 7, rowL + 6);
 
-      const rowR = i * 3;
-      rightIndices.push(rowR, rowR + 3, rowR + 1);
-      rightIndices.push(rowR + 1, rowR + 3, rowR + 4);
-      rightIndices.push(rowR + 1, rowR + 4, rowR + 2);
-      rightIndices.push(rowR + 2, rowR + 4, rowR + 5);
+      const rowR = i * 4;
+      // Strip 1: Waterline -> Dirt Transition
+      rightIndices.push(rowR, rowR + 4, rowR + 1);
+      rightIndices.push(rowR + 1, rowR + 4, rowR + 5);
+      // Strip 2: Dirt -> Crest
+      rightIndices.push(rowR + 1, rowR + 5, rowR + 2);
+      rightIndices.push(rowR + 2, rowR + 5, rowR + 6);
+      // Strip 3: Crest -> Outer Top
+      rightIndices.push(rowR + 2, rowR + 6, rowR + 3);
+      rightIndices.push(rowR + 3, rowR + 6, rowR + 7);
     }
 
     const wGeo = new THREE.BufferGeometry();
@@ -137,12 +191,14 @@ export function River({ track }: RiverProps) {
     const lGeo = new THREE.BufferGeometry();
     lGeo.setAttribute('position', new THREE.Float32BufferAttribute(leftPositions, 3));
     lGeo.setAttribute('uv', new THREE.Float32BufferAttribute(leftUvs, 2));
+    lGeo.setAttribute('color', new THREE.Float32BufferAttribute(leftColors, 3));
     lGeo.setIndex(leftIndices);
     lGeo.computeVertexNormals();
 
     const rGeo = new THREE.BufferGeometry();
     rGeo.setAttribute('position', new THREE.Float32BufferAttribute(rightPositions, 3));
     rGeo.setAttribute('uv', new THREE.Float32BufferAttribute(rightUvs, 2));
+    rGeo.setAttribute('color', new THREE.Float32BufferAttribute(rightColors, 3));
     rGeo.setIndex(rightIndices);
     rGeo.computeVertexNormals();
 
@@ -178,11 +234,11 @@ export function River({ track }: RiverProps) {
       {/* 1. River Water Surface Ribbon (Animated Shader) */}
       <mesh geometry={waterGeo} material={sharedWaterMaterial} renderOrder={1} />
 
-      {/* 2. Raised River Banks (Merged left and right banks) */}
+      {/* 2. Raised River Banks (Merged left and right banks with natural vertex color variation) */}
       <mesh geometry={banksGeo}>
         <meshToonMaterial
+          vertexColors
           gradientMap={threeStepGradientMap}
-          color={GAME_CONSTANTS.BANK_TOP_COLOR}
         />
       </mesh>
 

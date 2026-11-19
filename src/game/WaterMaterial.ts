@@ -88,7 +88,7 @@ void main() {
  * Opaque with depthWrite: true to guarantee correct draw order with banks and ground plane.
  */
 export function createWaterMaterial(): THREE.ShaderMaterial {
-  const sunDirection = new THREE.Vector3(60, 80, -40).normalize();
+  const sunDirection = new THREE.Vector3(...GAME_CONSTANTS.SUN_POSITION).normalize();
 
   return new THREE.ShaderMaterial({
     fog: true,
@@ -97,9 +97,9 @@ export function createWaterMaterial(): THREE.ShaderMaterial {
       uTime: { value: 0 },
       uColorDeep: { value: new THREE.Color(GAME_CONSTANTS.WATER_COLOR) },
       uColorShallow: { value: new THREE.Color(GAME_CONSTANTS.WATER_SURFACE_COLOR) },
-      uColorFoam: { value: new THREE.Color('#e0f2fe') },
+      uColorFoam: { value: new THREE.Color('#e8f4fc') },
       uSunDirection: { value: sunDirection },
-      uSunColor: { value: new THREE.Color('#fffbeb') },
+      uSunColor: { value: new THREE.Color(GAME_CONSTANTS.SUN_COLOR) },
     },
     vertexShader,
     fragmentShader,
