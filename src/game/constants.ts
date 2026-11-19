@@ -160,14 +160,22 @@ export const GAME_CONSTANTS = {
   OTTER_LENGTH: 0.9, // Length of capsule cylinder portion (meters)
 
   // World & Aesthetics (Vision document: Genshin-like bright anime nature)
-  WATER_COLOR: '#0891b2', // Deep clear blue-green
-  WATER_SURFACE_COLOR: '#22d3ee', // Highlight water cyan
+  WATER_COLOR: '#0c7a9c', // Deep clear crystal blue-green
+  WATER_SURFACE_COLOR: '#2ed3e8', // Highlight azure-teal water surface
   WATER_SURFACE_Y: 0.0,
-  FOG_COLOR: '#bae6fd',
-  FOG_NEAR: 80,
-  FOG_FAR: 320,
-  SKY_COLOR: '#7dd3fc',
-  GROUND_VALLEY_COLOR: '#16a34a',
+  FOG_COLOR: '#c6d7e8', // Soft atmospheric blue-grey haze (replaces green-tinted cyan)
+  FOG_NEAR: 85,
+  FOG_FAR: 340,
+  SKY_COLOR: '#74b2e8', // Neutral anime sky blue (cooler, less green/cyan)
+  GROUND_VALLEY_COLOR: '#2f7a46', // Muted, natural rolling valley meadow green (replaces flat neon #16a34a)
+  SUN_COLOR: '#fff1d6', // Warm golden sunlight (golden hour warmth + bright Genshin clarity)
+  SUN_INTENSITY: 1.45, // Sunlight radiance
+  SUN_POSITION: [60, 80, -40] as const,
+  HEMI_SKY_COLOR: '#e2edfb', // Soft ambient sky dome
+  HEMI_GROUND_COLOR: '#4a573d', // Muted warm olive ground bounce (replaces neon green bounce)
+  HEMI_INTENSITY: 0.9,
+  PETAL_COLOR: '#fed7aa', // Warm sakura / golden blossom petals drifting on the breeze
+  PETAL_OPACITY: 0.85,
   CANVAS_DPR: [1, 2] as [number, number],
 } as const;
 
